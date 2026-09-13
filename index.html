@@ -1,0 +1,1197 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Spring isolator balancing</title>
+<meta name="description" content="เครื่องมือ balance spring isolator สำหรับงาน HVAC: กระจายน้ำหนักลงแต่ละ mount จากระยะยุบของสปริง">
+<meta name="theme-color" content="#16202a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Spring balance">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#16202a; --panel:#1c2834; --panel2:#243342; --line:#33495b;
+  --text:#e2e9ef; --muted:#93a7b7; --accent:#78c2e6;
+  --ok:#58c48a; --warn:#f1a83b; --bad:#f06363;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--text);
+  font:15px/1.55 "IBM Plex Sans Thai","Leelawadee UI","Noto Sans Thai","Sarabun",system-ui,sans-serif;
+  font-variant-numeric:tabular-nums}
+main{max-width:1240px;margin:0 auto;padding:20px 20px 64px}
+h1{font-size:30px;line-height:1.15;margin:0;font-weight:700}
+h2{font-size:18px;line-height:1.3;margin:0;font-weight:600}
+p{margin:0}
+.muted{color:var(--muted)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* header */
+.top{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;justify-content:space-between;
+  padding-bottom:16px;border-bottom:1px solid var(--line)}
+.sub{margin-top:4px;color:var(--muted)}
+.tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+button,.btn,select{font:inherit;font-size:14px;color:var(--text);background:var(--panel2);
+  border:1px solid var(--line);border-radius:6px;padding:7px 12px;cursor:pointer}
+button:hover,.btn:hover,select:hover{border-color:var(--accent)}
+.primary{background:var(--accent);color:#0d2230;border-color:var(--accent);font-weight:600}
+
+/* unit bar */
+.unitbar{margin:18px 0 0;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px 12px}
+.unitbar .fields{margin:0}
+.unitbar .hint{margin:10px 0 0}
+.fields select{width:100%}
+.fields label.wide{grid-column:span 2}
+@media (max-width:620px){.fields label.wide{grid-column:span 1}}
+
+/* overview */
+.overview{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:20px;margin:20px 0 0}
+@media (max-width:920px){.overview{grid-template-columns:1fr}}
+.plan{margin:0;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 12px 10px}
+.plan-scroll{overflow-x:auto}
+.plan svg{width:100%;min-width:760px;height:auto;display:block}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12.5px;color:var(--muted);padding:6px 4px 0}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px}
+.legend .tk{width:14px;height:0;border-top:2.5px solid #fff;border-radius:0}
+.legend .cgd{width:10px;height:10px;border:2px solid var(--muted);border-radius:50%}
+.legend .cgm{width:10px;height:10px;background:var(--accent);border-radius:50%}
+
+.summary{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
+.verdict{font-size:18px;font-weight:600;line-height:1.35;margin:0 0 14px;padding-left:12px;border-left:4px solid var(--muted)}
+.verdict.ok{border-color:var(--ok)} .verdict.warn{border-color:var(--warn)} .verdict.bad{border-color:var(--bad)}
+.summary dl{margin:0;display:grid;gap:7px}
+.summary dl div{display:flex;justify-content:space-between;gap:12px;border-bottom:1px dashed var(--line);padding-bottom:6px}
+.summary dt{color:var(--muted);font-size:14px}
+.summary dd{margin:0;text-align:right;font-weight:600}
+.summary dd small{font-weight:400;color:var(--muted)}
+.notes{margin:14px 0 0;padding:0;list-style:none;display:grid;gap:8px;font-size:13.5px;line-height:1.5}
+.notes li{padding:8px 10px;border-radius:6px;background:var(--panel2);border-left:3px solid var(--warn)}
+.notes li.bad{border-color:var(--bad)} .notes li.info{border-color:var(--accent)}
+
+/* sections */
+.sec-head{display:flex;flex-wrap:wrap;align-items:center;gap:10px 12px;margin:30px 0 10px}
+.sec-head h2{margin-right:auto}
+.hint{color:var(--muted);font-size:13.5px;margin:-4px 0 10px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.seg label{position:relative;cursor:pointer}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg span{display:block;padding:6px 12px;font-size:14px;color:var(--muted)}
+.seg input:checked+span{background:var(--panel2);color:var(--text);font-weight:600}
+.seg input:focus-visible+span{outline:2px solid var(--accent);outline-offset:-2px}
+
+/* tables */
+.tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+table{border-collapse:collapse;width:100%}
+#tMain{min-width:1120px}
+#tMain td.tgt{background:rgba(120,194,230,.06)}
+#tMain thead th.tgt{color:var(--accent)}
+#tSetup{min-width:900px}
+th,td{padding:9px 10px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap;vertical-align:middle}
+thead th{font-size:13px;font-weight:600;color:var(--muted);background:var(--panel2);line-height:1.3}
+thead small{font-weight:400}
+tbody tr:last-child>*{border-bottom:0}
+tfoot th,tfoot td{border-top:1px solid var(--line);border-bottom:0;font-weight:600}
+#tMain tbody th,#tMain tfoot th{text-align:left}
+/* point + free length stay pinned while the round columns scroll */
+#tMain tr>:first-child{position:sticky;left:0;z-index:2;background:var(--panel);
+  width:136px;min-width:136px;max-width:136px}
+#tMain tr>:nth-child(2){position:sticky;left:136px;z-index:2;background:var(--panel);
+  box-shadow:1px 0 0 var(--line)}
+#tMain thead tr>:first-child{background:var(--panel2);text-align:left}
+#tMain thead tr>:nth-child(2){background:var(--panel2)}
+#tMain tr.s-ok>th:first-child{box-shadow:inset 4px 0 0 var(--ok)}
+#tMain tr.s-warn>th:first-child{box-shadow:inset 4px 0 0 var(--warn)}
+#tMain tr.s-bad>th:first-child{box-shadow:inset 4px 0 0 var(--bad)}
+.pid{font-size:17px;font-weight:700;display:block;line-height:1.2}
+.mt{font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:6px;font-weight:400}
+.sw{width:11px;height:11px;border-radius:50%;display:inline-block;border:1px solid rgba(255,255,255,.35);flex:none}
+td small{display:block;font-size:12px;color:var(--muted);font-weight:400}
+td b{font-weight:600}
+input.num,input.txt,#tSetup select{font:inherit;font-size:14.5px;background:var(--bg);color:var(--text);
+  border:1px solid var(--line);border-radius:5px;padding:6px 8px}
+input.num{width:86px;text-align:right}
+input.txt{width:70px}
+#tSetup input[data-f="cname"]{width:132px;text-align:left}
+#tSetup input[data-f="id"]{width:64px}
+input.num:focus,input.txt:focus{border-color:var(--accent)}
+input.meas{width:92px;font-weight:600;border-color:#3c5163}
+input.meas.act{border-color:#6f92ab;background:rgba(120,194,230,.07)}
+#tMain th.rnd{cursor:pointer;min-width:120px;position:relative;padding-right:28px}
+#tMain th.rnd .rdel{position:absolute;top:50%;transform:translateY(-50%);right:2px;width:22px;height:22px;padding:0;line-height:1;
+  font-size:15px;border-radius:50%;background:transparent;border:0;color:var(--muted);cursor:pointer}
+#tMain th.rnd .rdel:hover{background:rgba(240,99,99,.2);color:var(--bad);border:0}
+#tMain th.rnd.act{color:var(--accent)}
+#tMain th.rnd .rlab{display:block;font-weight:600}
+#tMain th.rnd .rsub{display:block;font-weight:400;font-size:11.5px}
+#tMain td.rcell small{font-size:11.5px}
+.rtools{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 12px}
+.rtools .lead{color:var(--muted);font-size:13.5px}
+.rtools input{font:inherit;font-size:14px;background:var(--bg);color:var(--text);border:1px solid var(--line);
+  border-radius:5px;padding:6px 8px;width:130px}
+
+/* history */
+#tHist{min-width:860px}
+#tHist th,#tHist td{text-align:center}
+#tHist tr>:first-child{text-align:left;position:sticky;left:0;z-index:1;background:var(--panel)}
+#tHist thead tr>:first-child{background:var(--panel2)}
+#tHist tbody th{font-weight:600}
+#tHist tbody th small{display:block;font-size:12px;color:var(--muted);font-weight:400}
+#tHist tr.act{background:rgba(120,194,230,.06)}
+#tHist tr.act>:first-child{background:#22303d;box-shadow:inset 4px 0 0 var(--accent)}
+#tHist td b{display:block}
+#tHist td small{color:var(--muted)}
+#tHist .tot{border-left:1px solid var(--line)}
+.hist-empty{padding:16px;color:var(--muted)}
+.hist-foot{padding:10px 12px;font-size:13.5px;color:var(--muted);border-top:1px solid var(--line)}
+.tag{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12.5px;font-weight:600}
+.tag.ok{background:rgba(88,196,138,.15);color:var(--ok)}
+.tag.warn{background:rgba(241,168,59,.15);color:var(--warn)}
+.tag.bad{background:rgba(240,99,99,.15);color:var(--bad)}
+.t-warn{color:var(--warn)!important}
+.del{padding:4px 10px;font-size:13px}
+
+/* setup */
+details{margin-top:30px;border-top:1px solid var(--line);padding-top:18px}
+summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"";width:8px;height:8px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);
+  transform:rotate(-45deg);transition:transform .15s}
+details[open] summary::before{transform:rotate(45deg)}
+.fields{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px 18px;margin:16px 0}
+.fields label{display:grid;gap:4px;font-size:13.5px;color:var(--muted)}
+.fields input[type=text],.fields input[type=number]{font:inherit;font-size:15px;color:var(--text);background:var(--bg);
+  border:1px solid var(--line);border-radius:5px;padding:7px 9px;width:100%}
+.fields .chk{display:flex;align-items:center;gap:8px;color:var(--text);font-size:14px;align-self:end;padding-bottom:6px}
+.fields fieldset{border:0;padding:0;margin:0;display:grid;gap:4px}
+.fields legend{font-size:13.5px;color:var(--muted);padding:0;margin-bottom:4px}
+.row-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.help{max-width:78ch;color:var(--text)}
+.help ol,.help ul{padding-left:22px;margin:14px 0}
+.help li{margin-bottom:8px}
+.help h3{font-size:15px;margin:18px 0 0}
+
+/* free length by model */
+.flbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin:0 0 12px;padding:10px 12px;
+  background:var(--panel);border:1px solid var(--line);border-radius:10px;font-size:14px}
+.flbar .lead{color:var(--muted);margin-right:4px}
+.flbar label{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.flbar input{width:80px}
+input.fl{width:84px}
+input.fl:placeholder-shown{border-color:#6b5a3a}
+
+/* datasheet vs actual */
+#tCmp{min-width:780px}
+#tCmp th,#tCmp td{text-align:center}
+#tCmp tr>:first-child{text-align:left;position:sticky;left:0;z-index:1;background:var(--panel)}
+#tCmp thead tr>:first-child{background:var(--panel2)}
+#tCmp thead th{font-size:14px;color:var(--text)}
+#tCmp .tot{font-weight:600;border-left:1px solid var(--line)}
+#tCmp tr.act td{font-weight:700;font-size:16px}
+#tCmp tbody th{font-weight:600}
+#tCmp tbody th small{display:block;font-size:12px;color:var(--muted);font-weight:400}
+td.st-ok{background:rgba(88,196,138,.13);color:var(--ok)}
+td.st-warn{background:rgba(241,168,59,.13);color:var(--warn)}
+td.st-bad{background:rgba(240,99,99,.15);color:var(--bad)}
+.ord{display:inline-grid;place-items:center;min-width:26px;height:26px;padding:0 7px;border-radius:13px;
+  font-weight:700;font-size:13.5px;color:#10202b}
+.ord.t1{background:var(--bad)} .ord.t2{background:var(--warn)} .ord.t3{background:var(--accent)}
+
+/* sequence */
+#tSeq{min-width:940px}
+#tSeq th,#tSeq td{text-align:left;white-space:normal;vertical-align:top}
+#tSeq td.n,#tSeq th.n{text-align:center;width:60px}
+#tSeq .why{min-width:220px;width:34%}
+#tSeq td b,#tSeq td small{white-space:nowrap}
+#tSeq .tier{display:block;white-space:nowrap}
+#tSeq .pid{font-size:18px}
+#tSeq tr.t1>td:first-child{box-shadow:inset 4px 0 0 var(--bad)}
+#tSeq tr.t2>td:first-child{box-shadow:inset 4px 0 0 var(--warn)}
+#tSeq tr.t3>td:first-child{box-shadow:inset 4px 0 0 var(--accent)}
+.tier{font-size:13px;font-weight:600}
+.tier.t1{color:var(--bad)} .tier.t2{color:var(--warn)} .tier.t3{color:var(--accent)}
+.risk{color:var(--bad);font-size:12.5px;display:block;margin-top:2px}
+.seq-empty{padding:16px;color:var(--muted)}
+.seq-foot{padding:10px 12px;font-size:13.5px;color:var(--muted);border-top:1px solid var(--line)}
+
+/* plan svg */
+.bdg circle{stroke:var(--bg);stroke-width:2}
+.bdg.t1 circle{fill:var(--bad)} .bdg.t2 circle{fill:var(--warn)} .bdg.t3 circle{fill:var(--accent)}
+.bdg text{fill:#10202b;font-size:14px;font-weight:700}
+.frame{fill:rgba(120,194,230,.035);stroke:#3d5569;stroke-width:2}
+.node{fill:var(--bg);stroke:var(--muted);stroke-width:2}
+.track{fill:var(--bg);stroke:#46607a;stroke-width:1}
+.f-ok{fill:var(--ok)} .f-warn{fill:var(--warn)} .f-bad{fill:var(--bad)} .f-none{fill:var(--accent);opacity:.3}
+.cap{stroke:var(--muted);stroke-width:1;stroke-dasharray:3 2}
+.tick{stroke:#fff;stroke-width:2.5}
+.lbl{fill:var(--text);font-size:22px;font-weight:700}
+.lbl2{fill:var(--muted);font-size:15px}
+.val{fill:var(--text);font-size:19px;font-weight:600}
+.val2{fill:var(--muted);font-size:15px}
+.pt{cursor:pointer}
+.pt:focus{outline:none}
+.pt:focus-visible .track{stroke:var(--accent);stroke-width:2.5}
+.cgd{fill:none;stroke:var(--muted);stroke-width:2}
+.cgm{fill:var(--accent)}
+.cgl{stroke:var(--accent);stroke-width:1.5;stroke-dasharray:4 3}
+.dim{fill:var(--muted);font-size:15px}
+
+#toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--panel2);color:var(--text);
+  border:1px solid var(--accent);border-radius:8px;padding:9px 14px;font-size:14px;opacity:0;pointer-events:none;
+  transition:opacity .2s;display:flex;align-items:center;gap:12px;max-width:min(560px,92vw)}
+#toast.show{opacity:1}
+#toast.act{pointer-events:auto}
+#toast button{padding:5px 12px;font-size:13.5px;background:var(--accent);color:#0d2230;border-color:var(--accent);font-weight:600;flex:none}
+.npts{display:inline-flex;align-items:center;gap:6px;font-size:14px;color:var(--muted)}
+.npts input{font:inherit;font-size:14px;background:var(--bg);color:var(--text);border:1px solid var(--line);
+  border-radius:5px;padding:6px 8px;width:64px;text-align:right}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+@media (max-width:600px){
+  h1{font-size:24px} main{padding:14px 12px 48px}
+  #tMain th,#tMain td{padding:8px 7px}
+  #tMain tr>:first-child{width:96px;min-width:96px;max-width:96px}
+  #tMain tr>:nth-child(2){left:96px}
+  #tMain .pid{font-size:15px}
+  #tMain .mt{font-size:11px}
+  input.fl{width:64px}
+  input.meas{width:80px}
+}
+@media print{
+  body{background:#fff;color:#000} .tools,.sec-head .seg,.sec-head button,details:not([open]){display:none}
+  .plan,.summary,.tbl-wrap{border-color:#999;background:#fff}
+}
+</style>
+</head>
+<body>
+<main>
+  <header class="top">
+    <div>
+      <h1 id="hTag">Spring isolator balancing</h1>
+      <p class="sub" id="hSub"></p>
+    </div>
+    <div class="tools">
+      <button id="bSave" class="primary">บันทึก</button>
+      <select id="selLoad" aria-label="เปิดงานที่บันทึกไว้"></select>
+      <button id="bCsv">Export CSV</button>
+      <button id="bJson">Export JSON</button>
+      <label class="btn" for="fJson">Import JSON</label>
+      <input type="file" id="fJson" accept=".json,application/json" hidden>
+    </div>
+  </header>
+
+  <section class="unitbar">
+    <div class="fields">
+      <label class="wide">เลือกเครื่อง
+        <select id="selPreset" aria-label="โหลดข้อมูลเครื่องที่มีอยู่แล้ว"></select>
+      </label>
+      <label>Unit tag<input type="text" id="uTag" placeholder="เช่น ACU-SS097-01C"></label>
+      <label>Building<input type="text" id="uBldg" placeholder="เช่น SUBSTATION-097"></label>
+      <label>Unit model<input type="text" id="uModel" placeholder="เช่น ACUS-52080CEXM"></label>
+      <label>น้ำหนักรวม datasheet (kg)<input type="number" id="uW" inputmode="decimal" placeholder="เช่น 3833"></label>
+    </div>
+    <p class="hint" id="unitHint"></p>
+  </section>
+
+  <section class="overview">
+    <figure class="plan">
+      <div class="plan-scroll"><svg id="plan" role="img" aria-label="ผังจุดรองรับและโหลดแต่ละจุด"></svg></div>
+      <figcaption class="legend">
+        <span><i style="background:var(--ok)"></i>อยู่ในเกณฑ์</span>
+        <span><i style="background:var(--warn)"></i>ใกล้เกณฑ์</span>
+        <span><i style="background:var(--bad)"></i>ต้องปรับ</span>
+        <span><i style="background:var(--accent);opacity:.35"></i>ยังไม่วัด (แสดงเป้า)</span>
+        <span><i class="tk"></i>โหลดเป้าหมาย</span>
+        <span><i class="cgd"></i>CG datasheet</span>
+        <span><i class="cgm"></i>CG จากการวัด</span>
+        <span>เส้นประในแท่ง = พิกัดสปริง</span>
+        <span>ตัวเลขในวงกลม = ลำดับการปรับ</span>
+      </figcaption>
+    </figure>
+    <aside class="summary" id="summary" aria-live="polite"></aside>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2>Datasheet เทียบ Actual</h2></div>
+    <div class="tbl-wrap"><table id="tCmp"></table></div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>ค่าวัดหน้างานและการปรับ</h2>
+      <div class="seg" role="radiogroup" aria-label="สิ่งที่วัด">
+        <label><input type="radio" name="mode" value="height"><span>กรอกความสูงสปริง</span></label>
+        <label><input type="radio" name="mode" value="deflection"><span>กรอกระยะยุบ</span></label>
+      </div>
+      <button id="bAddR" class="primary">เพิ่มรอบวัดหลังปรับ</button>
+      <button id="bEx">ใส่ค่าตัวอย่าง</button>
+      <button id="bClr">ล้างรอบนี้</button>
+    </div>
+    <p class="hint" id="modeHint"></p>
+    <div class="flbar" id="flBar"></div>
+    <div class="rtools" id="rTools"></div>
+    <div class="tbl-wrap"><table id="tMain"></table></div>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2>ลำดับการปรับ</h2></div>
+    <p class="hint">ทำตามลำดับจากบนลงล่าง แต่ละขั้นหมุน bolt ตามระยะที่ระบุ แล้วเช็กว่าความสูงสปริง (หรือระยะยุบ) ที่จุดนั้นอ่านได้ใกล้ค่าที่คาด ค่านี้คิดรวมการที่เฟรมขยับตามแล้ว จึงไม่เท่ากับค่าเป้าหมายสุดท้าย ครบทุกขั้นแล้วให้วัดใหม่ทุกจุดและกรอกทับ</p>
+    <div class="tbl-wrap" id="seqWrap"></div>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2>ประวัติการวัด</h2></div>
+    <p class="hint">เทียบผลแต่ละรอบเพื่อดูว่าการปรับเดินไปถูกทางหรือไม่ แต่ละช่องแสดงโหลดที่คำนวณได้และ % ที่ต่างจากเป้าของรอบนั้น</p>
+    <div class="tbl-wrap" id="histWrap"></div>
+  </section>
+
+  <details id="setup">
+    <summary><h2>ข้อมูลเครื่องและ spring mount</h2></summary>
+    <div class="fields">
+      <label>ระยะยุบที่พิกัดโหลด (mm)<input type="number" id="sDefl" inputmode="decimal" step="0.5"></label>
+      <label>เกณฑ์ยอมรับ ± (% ของโหลดเป้าหมาย)<input type="number" id="sTol" inputmode="decimal" step="0.5"></label>
+      <label>Thread pitch (mm/รอบ)<input type="number" id="sPitch" inputmode="decimal" step="0.001" placeholder="อัตโนมัติตามขนาด bolt (UNC)"></label>
+      <fieldset>
+        <legend>โหลดเป้าหมาย</legend>
+        <label class="chk"><input type="radio" name="basis" value="matched"> ตามน้ำหนักและ CG ที่วัดได้</label>
+        <label class="chk"><input type="radio" name="basis" value="datasheet"> ตาม datasheet ตรง ๆ</label>
+      </fieldset>
+    </div>
+    <div class="tbl-wrap"><table id="tSetup"></table></div>
+    <div class="row-actions">
+      <button id="bAdd">เพิ่มจุดรองรับ</button>
+      <button id="bEqual">กระจายน้ำหนักรวมเท่ากันทุกจุด</button>
+      <span class="npts"><label for="nPts">จำนวนจุด</label><input type="number" id="nPts" min="1" max="40" step="1" value="4" inputmode="numeric"></span>
+      <button id="bNew">เริ่มอุปกรณ์ใหม่ (ล้างทุกอย่าง)</button>
+    </div>
+  </details>
+
+  <details class="help-wrap">
+    <summary><h2>วิธีใช้และสมมติฐาน</h2></summary>
+    <div class="help">
+      <ol>
+        <li>กำหนด free length ของสปริงแต่ละตัว (ความสูงตัวสปริงอย่างเดียว ไม่รวม housing ขณะไม่มีโหลด) วัดจริงก่อนประกอบหรือใช้ค่าจากผู้ผลิตก็ได้ ถ้าหลายตัวรุ่นเดียวกันใช้ค่าเดียวกัน ให้กรอกในแถบ "Free length ตามรุ่น" แล้วกดใส่ทีเดียว จากนั้นแก้รายตัวในตารางได้</li>
+        <li>วางเครื่องให้ทุกจุดรับโหลด วัดความสูงตัวสปริงขณะรับโหลดที่ตำแหน่งอ้างอิงเดียวกับตอนวัด free length (เช่น แผ่นรองสปริงบนถึงล่าง) แล้วกรอกในตาราง ถ้าวัดระยะยุบได้โดยตรงให้สลับเป็นโหมดกรอกระยะยุบ</li>
+        <li>ปรับ leveling bolt ให้ความสูงสปริงแต่ละจุดเข้าหาค่าเป้าหมาย คอลัมน์ระยะปรับ bolt บอกว่าต้องให้สปริงยุบเพิ่ม (เพิ่มโหลดที่จุดนั้น) หรือคลาย (ลดโหลด) กี่ mm และประมาณกี่รอบ</li>
+        <li>ก่อนวัดรอบถัดไป กด "เพิ่มรอบวัดหลังปรับ" จะได้คอลัมน์ใหม่ ค่ารอบเก่ายังอยู่ครบและดูเทียบกันได้ในตารางประวัติการวัด คลิกหัวคอลัมน์เพื่อเลือกว่าจะให้รอบไหนเป็นรอบที่ใช้คำนวณ ถ้าเพิ่มเกินมา กดปุ่ม × ที่มุมบนขวาของหัวคอลัมน์นั้นเพื่อลบ (หรือปุ่มลบรอบนี้เหนือตาราง)</li>
+        <li>วัดใหม่แล้วกรอกในรอบใหม่ ทำซ้ำ 2–3 รอบ เพราะเฟรมเป็นชิ้นเดียว ปรับจุดหนึ่งโหลดจะถ่ายไปจุดข้างเคียงด้วย ถ้าจุดไหนต้องปรับมาก ให้ปรับประมาณครึ่งหนึ่งก่อนแล้ววัดใหม่</li>
+        <li>เมื่อทุกจุดผ่านเกณฑ์ ตรวจระดับเฟรม ถ้าต้องยกหรือลดทั้งเครื่อง ให้หมุน bolt ทุกจุดเท่ากัน โหลดจะไม่เปลี่ยน แล้ว Export CSV เก็บเป็นบันทึก</li>
+      </ol>
+      <h3>ใช้กับอุปกรณ์อื่น</h3>
+      <ul>
+        <li>เปิดหัวข้อ "ข้อมูลเครื่องและ spring mount" กด "เริ่มอุปกรณ์ใหม่" ใส่จำนวนจุดรองรับ แล้วกรอกชื่อจุด พิกัด X Y (mm จุดไหนเป็น 0,0 ก็ได้ ขอให้สัมพันธ์กัน) และน้ำหนักที่แต่ละจุดตาม datasheet ของอุปกรณ์นั้น</li>
+        <li>สปริงเลือกได้ 2 แบบ: เลือกรุ่นจากแคตตาล็อกที่มีให้ (Weicco SMC และ Starline SCRSM25 ทั้งสองซีรีส์เป็นแบบ 25 mm deflection) หรือเลือก "กำหนดเอง" แล้วใส่ชื่อรุ่น พิกัดรับน้ำหนัก (kg) และระยะยุบที่พิกัด (mm) ของสปริงยี่ห้ออื่นเอง ใช้ปนกันในเครื่องเดียวได้</li>
+        <li>ถ้าเลือกรุ่นจากแคตตาล็อกแล้วอยากแก้พิกัดหรือระยะยุบเฉพาะบางจุด (เช่นมี test certificate ของสปริงตัวนั้น) ใส่ทับได้เลย ช่องที่ปล่อยว่างจะใช้ค่าแคตตาล็อก</li>
+        <li>ถ้ามีแต่น้ำหนักรวม ไม่มีน้ำหนักรายจุด ใส่น้ำหนักรวมแล้วกด "กระจายน้ำหนักรวมเท่ากันทุกจุด" เป็นค่าตั้งต้น แล้วแก้รายจุดเมื่อรู้ค่าจริง</li>
+      </ul>
+      <h3>สมมติฐานในการคำนวณ</h3>
+      <ul>
+        <li>ค่าคงที่สปริง k = พิกัดรับน้ำหนัก ÷ ระยะยุบที่พิกัด ของแต่ละจุด และถือว่าเป็นเชิงเส้น เช่น 500 kg ที่ 25 mm ได้ k = 20 kg/mm การคำนวณทั้งหมดใช้ k เท่านั้น จึงใช้กับสปริงยี่ห้อใดก็ได้ที่รู้ค่าทั้งสองนี้</li>
+        <li>เครื่องบนสปริงหลายจุดเป็นระบบ statically indeterminate กระจายโหลดได้หลายแบบ แต่ผลรวมต้องเท่าน้ำหนักจริงและโมเมนต์ต้องสอดคล้องกับ CG จริงเสมอ โหมด "ตามน้ำหนักและ CG ที่วัดได้" จึงหาชุดโหลดเป้าหมายที่ใกล้ datasheet ที่สุด (ถ่วงตามสัดส่วนโหลด) ภายใต้เงื่อนไขนี้ ถ้า CG จริงตรงกับ datasheet เป้าหมายจะเท่ากับค่า datasheet สเกลตามน้ำหนักจริง</li>
+        <li>จำนวนรอบคิดจาก pitch เกลียว UNC ตามขนาด bolt D ในแคตตาล็อก (5/8" = 11 TPI = 2.31 mm/รอบ) โดยสมมติว่าเฟรมไม่ขยับ ใช้เป็นแนวทางเท่านั้น ให้ยึดความสูงที่วัดได้เป็นหลัก</li>
+        <li>ปุ่ม "โหลดข้อมูลเครื่องที่มีอยู่แล้ว" มีข้อมูลของ ACU-SS097-01C, ACU-SS0118-01A, ACU-SS0118-02A และ ACWC-FAR13-01A (12 จุด ใช้ operating weight คือรวมน้ำในระบบแล้ว ส่วน dry weight 10,321 kg) พิกัด X, Y ถอดมาจาก dimension ในแบบ ควรตรวจกับหน้างานอีกครั้ง</li>
+        <li>ลำดับการปรับ: จุดวิกฤติ (เกินพิกัดสปริง, ยุบเกินพิกัด หรือต่างจากเป้าเกิน 2 เท่าของเกณฑ์) มาก่อน ตามด้วยจุดที่ต้องปรับ แล้วจึงปรับละเอียด ภายในกลุ่มเรียงจาก % ที่ต่างจากเป้ามากไปน้อย ค่าที่คาดหลังแต่ละขั้นคิดแบบเฟรมแข็งเกร็งบนสปริงเชิงเส้น (ขยับขึ้นลงและเอียงได้ 2 แกน) เฟรมจริงบิดตัวได้บ้าง จึงควรวัดยืนยันเสมอ</li>
+        <li>พิกัด X, Y ของ A1–A8 มาจาก drawing ของ ACUS-52080CEXM: ระยะตามแนวยาว 1742 + 508 + 1742 mm และแนวกว้าง 2184 mm โดยให้ A2 เป็นจุด (0, 0)</li>
+      </ul>
+    </div>
+  </details>
+</main>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* ---------- Weicco SMC cased spring mount, 25 mm standard deflection ---------- */
+const CAT = [
+ ['SMC-A50',50,'Black',98,114,'3/8"'],['SMC-A100',100,'Blue',98,114,'3/8"'],['SMC-A150',150,'Grey',98,114,'3/8"'],['SMC-A200',200,'Orange',98,114,'3/8"'],
+ ['SMC-B200',200,'Black',112,132,'1/2"'],['SMC-B250',250,'Yellow',112,132,'1/2"'],['SMC-B300',300,'Blue',112,132,'1/2"'],['SMC-B400',400,'Grey',112,132,'1/2"'],
+ ['SMC-C400',400,'Brown',134,158,'5/8"'],['SMC-C500',500,'Grey',134,158,'5/8"'],['SMC-C600',600,'Orange',134,158,'5/8"'],
+ ['SMC-C700',700,'Green',146,170,'5/8"'],['SMC-C800',800,'Pink',146,170,'5/8"'],['SMC-C1000',1000,'White',146,170,'5/8"'],
+ ['SMC-C1200',1200,'Purple',146,170,'5/8"'],['SMC-C1400',1400,'Purple/Yellow',146,170,'5/8"'],['SMC-C1600',1600,'Purple/White',146,170,'5/8"'],
+ ['SMC-2C2000',2000,'White',156,185,'7/8"'],['SMC-2C2400',2400,'Purple',156,185,'7/8"'],['SMC-2C2800',2800,'Purple/Yellow',156,185,'7/8"'],['SMC-2C3200',3200,'Purple/White',156,185,'7/8"'],
+ ['SMC-4C4000',4000,'White',165,199,'1"'],['SMC-4C4800',4800,'Purple',165,199,'1"'],['SMC-4C5600',5600,'Purple/Yellow',165,199,'1"'],['SMC-4C6400',6400,'Purple/White',165,199,'1"']
+].map(([m,load,color,H,HIR,D])=>({m,load,color,H,HIR,D,brand:'Weicco SMC'}));
+
+/* ---------- Starline SCRSM25 cased restrained spring mount, 25 mm deflection ---------- */
+const CAT_SL = [
+ ['A15',15,'Brown','','M12'],['A30',30,'Grey','','M12'],['A40',40,'Yellow','','M12'],['A60',60,'Black','','M12'],
+ ['A100',100,'Orange','','M12'],['A150',150,'Green','','M12'],['A200',200,'Red','','M12'],['A300',300,'White','','M12'],
+ ['B200',200,'Green','','5/8"'],['B250',250,'Brown','','5/8"'],['B300',300,'Grey','','5/8"'],['B400',400,'Purple','','5/8"'],
+ ['B500',500,'Black','','5/8"'],['B600',600,'Yellow','','5/8"'],['B700',700,'Blue','','5/8"'],
+ ['C400',400,'Brown','','5/8"'],['C500',500,'Grey','','5/8"'],['C600',600,'Orange','','5/8"'],['C700',700,'Green','','5/8"'],
+ ['C800',800,'Brown','white','5/8"'],['C900',900,'Grey','white','5/8"'],['C1000',1000,'Orange','white','5/8"'],['C1100',1100,'Green','white','5/8"'],
+ ['C1200',1200,'Orange','blue','5/8"'],['C1300',1300,'Green','blue','5/8"'],
+ ['2C1400',1400,'Green','','5/8"'],['2C1600',1600,'Brown','white','5/8"'],['2C1800',1800,'Grey','white','5/8"'],['2C2000',2000,'Orange','white','5/8"'],
+ ['2C2200',2200,'Green','white','5/8"'],['2C2400',2400,'Orange','blue','5/8"'],['2C2600',2600,'Green','blue','5/8"'],
+ ['4C2800',2800,'Green','','5/8"'],['4C3200',3200,'Brown','white','5/8"'],['4C3600',3600,'Grey','white','5/8"'],['4C4000',4000,'Orange','white','5/8"'],
+ ['4C4400',4400,'Green','white','5/8"'],['4C4800',4800,'Orange','blue','5/8"'],['4C5200',5200,'Green','blue','5/8"']
+].map(([n,load,color,core,D])=>({m:'SCRSM25-'+n,load,color:core?color+'/'+(core==='white'?'White':'Blue'):color,D,brand:'Starline SCRSM25',
+  note:core?`core ${core==='white'?'ขาว':'น้ำเงิน'}`:''}));
+CAT.push(...CAT_SL);
+const byModel = Object.fromEntries(CAT.map(c=>[c.m,c]));
+/* one point's spring: catalog entry, or the user's own rated load / deflection */
+function springOf(p){
+  const cat=byModel[p.mount], gdef=(+S.set.defl>0)?+S.set.defl:25;
+  const rl=+String(p.rload??'').replace(',','.'), rd=+String(p.rdefl??'').replace(',','.');
+  const load=(isFinite(rl)&&rl>0)?rl:(cat?cat.load:500);
+  const defl=(isFinite(rd)&&rd>0)?rd:gdef;
+  const custom=!cat;
+  const name=custom?((p.cname||'').trim()||'กำหนดเอง'):cat.m;
+  return {m:name, short:custom?name:cat.m.replace('SMC-',''), load, defl, k:load/defl,
+    color:cat?cat.color:'', D:cat?cat.D:'5/8"', custom};
+}
+const PITCH = {'M12':1.75,'M16':2.0,'3/8"':25.4/16,'1/2"':25.4/13,'5/8"':25.4/11,'7/8"':25.4/9,'1"':25.4/8};
+const SWC = {Red:'#d94f4f',Black:'#1a1a1a',Blue:'#3b7dd8',Grey:'#9aa4ad',Orange:'#f08a2c',Yellow:'#f2d02b',Brown:'#8a5a33',Green:'#3fae5a',Pink:'#f28cb8',White:'#f4f4f4',Purple:'#8e5bd0'};
+function swStyle(color){
+  const p=color.split('/');
+  return p.length>1 ? `background:linear-gradient(90deg,${SWC[p[0]]} 50%,${SWC[p[1]]} 50%)` : `background:${SWC[p[0]]||'#777'}`;
+}
+
+function blankState(unit){
+  return {unit:{tag:'',building:'',model:'',weight:'',...unit},
+    set:{defl:25,tol:5,basis:'matched',mode:'height',pitch:'',act:0},
+    rounds:[{label:'รอบ 1',note:''}], pts:[]};
+}
+/* 8-point ACU frame: 1742 + 508 + 1742 long, 2184 wide, odd points on the far side */
+function acuState(unit,loads,mounts){
+  const X=[0,0,1742,1742,2250,2250,3992,3992], st=blankState(unit);
+  st.pts=loads.map((ds,i)=>({id:'A'+(i+1),x:X[i],y:i%2===0?2184:0,ds,mount:mounts[i],cname:'',rload:'',rdefl:'',fl:'',m:['']}));
+  return st;
+}
+/* 12-point water-cooled chiller frame: 1360 x4 + 1166 long, 2354 wide */
+function far13State(){
+  const X=[0,0,1360,1360,2720,2720,4080,4080,5440,5440,6606,6606];
+  const ds=[802,764,1322,1117,758,811,1010,1092,1081,803,784,786];
+  const mt=['C1000','C1000','2C1600','2C1400','C1000','C1000','C1300','C1300','C1300','C1000','C1000','C1000'];
+  const st=blankState({tag:'ACWC-FAR13-01A',building:'FAR-13',model:'APCY5180EXM',weight:11129});
+  st.pts=ds.map((v,i)=>({id:'A'+(i+1),x:X[i],y:i%2===0?2354:0,ds:v,mount:'SCRSM25-'+mt[i],cname:'',rload:'',rdefl:'',fl:'',m:['']}));
+  return st;
+}
+const PRESETS=[
+  {id:'ss097',  label:'ACU-SS097-01C (SUBSTATION-097, 8 จุด, 3,833 kg)',
+   build:()=>acuState({tag:'ACU-SS097-01C',building:'SUBSTATION-097',model:'ACUS-52080CEXM',weight:3833},
+     [374,409,412,537,413,375,724,589],
+     ['SMC-C500','SMC-C500','SMC-C500','SMC-C700','SMC-C500','SMC-C500','SMC-C1000','SMC-C600'])},
+  {id:'ss118a', label:'ACU-SS0118-01A (SUBSTATION-118, 8 จุด, 4,038 kg)',
+   build:()=>acuState({tag:'ACU-SS0118-01A',building:'SUBSTATION-118',model:'ACUS-52095CEXM',weight:4038},
+     [394,434,437,580,434,394,754,611],
+     ['SMC-C500','SMC-C600','SMC-C600','SMC-C700','SMC-C600','SMC-C500','SMC-C1000','SMC-C800'])},
+  {id:'ss118b', label:'ACU-SS0118-02A (SUBSTATION-118, 8 จุด, 3,617 kg)',
+   build:()=>acuState({tag:'ACU-SS0118-02A',building:'SUBSTATION-118',model:'ACUS-52085CEXM',weight:3617},
+     [364,401,404,538,401,364,612,533],
+     ['SMC-C500','SMC-C500','SMC-C500','SMC-C700','SMC-C500','SMC-C500','SMC-C800','SMC-C700'])},
+  {id:'far13',  label:'ACWC-FAR13-01A (FAR-13, 12 จุด, 11,129 kg operating)', build:far13State}
+];
+function defaultState(){ return PRESETS[0].build(); }
+let S = defaultState();
+let last = null;
+
+/* ---------- helpers ---------- */
+const $ = id=>document.getElementById(id);
+const q = (el,s)=>el.querySelector(s);
+const fmt=(v,d=0)=>(v==null||!isFinite(v))?'–':Number(v).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
+const sgn=(v,d=0)=>{ if(v==null||!isFinite(v)) return '–'; const r=Number(v.toFixed(d)); return (r>0?'+':r<0?'−':'')+fmt(Math.abs(r),d); };
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const sum=a=>a.reduce((x,y)=>x+y,0);
+function turnsText(t){
+  const qv=Math.round(Math.abs(t)*4)/4;
+  if(qv===0) return 'ไม่ถึง ¼ รอบ';
+  const w=Math.floor(qv), fr={0:'',0.25:'¼',0.5:'½',0.75:'¾'}[qv-w];
+  return (w?w:'')+(w&&fr?' ':'')+fr+' รอบ';
+}
+function toast(msg,undo){
+  const t=$('toast'); t.innerHTML='';
+  const sp=document.createElement('span'); sp.textContent=msg; t.appendChild(sp);
+  t.classList.toggle('act',!!undo);
+  if(undo){
+    const b=document.createElement('button'); b.textContent='เลิกทำ';
+    b.onclick=()=>{ t.classList.remove('show','act'); undo(); };
+    t.appendChild(b);
+  }
+  t.classList.add('show');
+  clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove('show','act'),undo?7000:2600);
+}
+/* every destructive action is applied straight away and offers an undo,
+   because confirm()/prompt() are blocked in sandboxed preview frames */
+const snapshot=()=>JSON.stringify(S);
+function undoTo(snap){ return ()=>{ S=normalize(JSON.parse(snap)); applyState(); toast('ย้อนกลับแล้ว'); }; }
+
+/* ---------- math ---------- */
+function solve(M,b){
+  const n=b.length, A=M.map((r,i)=>[...r,b[i]]);
+  for(let c=0;c<n;c++){
+    let p=c; for(let r=c+1;r<n;r++) if(Math.abs(A[r][c])>Math.abs(A[p][c])) p=r;
+    if(Math.abs(A[p][c])<1e-9) return null;
+    [A[c],A[p]]=[A[p],A[c]];
+    for(let r=0;r<n;r++){ if(r===c) continue; const f=A[r][c]/A[c][c]; for(let k=c;k<=n;k++) A[r][k]-=f*A[c][k]; }
+  }
+  return A.map((r,i)=>r[n]/r[i]);
+}
+/* Closest load set to the datasheet (weighted by datasheet share) that has the
+   measured total weight and the measured moments about X and Y. */
+function matchTargets(T,F,xs,ys){
+  const n=T.length, W=sum(T.map(t=>Math.max(t,0)))||1;
+  const avg=a=>sum(a)/a.length;
+  const xm=avg(xs), ym=avg(ys);
+  const sx=(Math.max(...xs)-Math.min(...xs))||1, sy=(Math.max(...ys)-Math.min(...ys))||1;
+  const u=xs.map(x=>(x-xm)/sx), v=ys.map(y=>(y-ym)/sy);
+  const w=T.map(t=>Math.max(t,1e-6)/W);
+  const sets=[[()=>1,i=>u[i],i=>v[i]],[()=>1,i=>u[i]],[()=>1,i=>v[i]],[()=>1]];
+  for(const fs of sets){
+    const M=fs.map(f=>fs.map(g=>{let s=0;for(let i=0;i<n;i++) s+=w[i]*f(i)*g(i);return s;}));
+    const r=fs.map(f=>{let s=0;for(let i=0;i<n;i++) s+=(F[i]-T[i])*f(i);return s;});
+    const lam=solve(M,r); if(!lam) continue;
+    return {T:T.map((t,i)=>t+w[i]*fs.reduce((s,f,j)=>s+lam[j]*f(i),0)), dof:fs.length};
+  }
+  return {T:T.slice(),dof:0};
+}
+
+const num=v=>(v===''||v==null)?NaN:+String(v).replace(',','.');
+function nRounds(){ return S.rounds.length; }
+function actIdx(){ return Math.min(Math.max(+S.set.act||0,0),nRounds()-1); }
+function measAt(p,ri){ return (p.m&&p.m[ri]!=null)?p.m[ri]:''; }
+function setMeas(p,ri,v){ if(!Array.isArray(p.m)) p.m=[]; while(p.m.length<nRounds()) p.m.push(''); p.m[ri]=v; }
+function loadsFor(ri){
+  const s=S.set;
+  return S.pts.map((p,i)=>{
+    const c=springOf(p);
+    const k=c.k, pitch=(+s.pitch>0)?+s.pitch:PITCH[c.D];
+    const fl=num(p.fl), mv=num(measAt(p,ri)), hasFl=isFinite(fl);
+    let d=null,Hl=null;
+    if(isFinite(mv)){
+      if(s.mode==='height'){ if(hasFl){Hl=mv;d=fl-mv;} }
+      else { d=mv; Hl=hasFl?fl-mv:null; }
+    }
+    const needFl=s.mode==='height'&&isFinite(mv)&&!hasFl;
+    return {i,p,c,k,pitch,fl:hasFl?fl:null,d,Hl,needFl,F:d==null?null:k*d,x:+p.x||0,y:+p.y||0,ds:+p.ds||0};
+  });
+}
+function targetsFor(R){
+  const all=R.length>0&&R.every(r=>r.F!=null);
+  let T=R.map(r=>r.ds), dof=null;
+  if(all&&S.set.basis==='matched'){ const m=matchTargets(T,R.map(r=>r.F),R.map(r=>r.x),R.map(r=>r.y)); T=m.T; dof=m.dof; }
+  return {T,dof,all};
+}
+function roundStats(ri){
+  const R=loadsFor(ri), {T,all}=targetsFor(R), tol=(+S.set.tol>0)?+S.set.tol:5;
+  const devs=R.map((r,i)=>r.F==null?null:(T[i]?(r.F-T[i])/Math.abs(T[i])*100:0));
+  const got=devs.filter(v=>v!=null).map(Math.abs);
+  return {ri,R,T,devs,all,nMeas:R.filter(r=>r.F!=null).length,
+    sumF:all?sum(R.map(r=>r.F)):null,
+    maxDev:got.length?Math.max(...got):null,
+    nOk:devs.filter(v=>v!=null&&Math.abs(v)<=tol).length};
+}
+function compute(){
+  const s=S.set, defl=(+s.defl>0)?+s.defl:25, tol=(+s.tol>0)?+s.tol:5, ri=actIdx();
+  const R=loadsFor(ri);
+  const nMeas=R.filter(r=>r.F!=null).length, all=R.length>0&&nMeas===R.length;
+  const tg=targetsFor(R), T=tg.T, dof=tg.dof;
+  R.forEach((r,i)=>{
+    r.T=T[i]; r.targetD=r.T/r.k; r.targetH=r.fl!=null?r.fl-r.targetD:null; r.util=r.T/r.c.load;
+    if(r.F!=null){
+      r.dF=r.T-r.F; r.dd=r.dF/r.k; r.turns=r.dd/r.pitch;
+      r.dev=r.T!==0?(r.F-r.T)/Math.abs(r.T)*100:0;
+      const a=Math.abs(r.dev); r.status=a<=tol?'ok':a<=2*tol?'warn':'bad';
+    } else r.status='none';
+  });
+  const sumDs=sum(R.map(r=>r.ds)), sumT=sum(R.map(r=>r.T));
+  const sumF=all?sum(R.map(r=>r.F)):null;
+  const cgD=sumDs>0?{x:sum(R.map(r=>r.ds*r.x))/sumDs,y:sum(R.map(r=>r.ds*r.y))/sumDs}:null;
+  const cgM=(all&&sumF>0)?{x:sum(R.map(r=>r.F*r.x))/sumF,y:sum(R.map(r=>r.F*r.y))/sumF}:null;
+  last={R,all,nMeas,sumDs,sumT,sumF,cgD,cgM,dof,tol,defl,ri};
+  last.seq=buildSequence(last);
+  updateHeader(); updateMain(); updateSetupCells(); renderSummary(); drawPlan(); renderCmp(); renderSeq(); renderHist();
+}
+
+function renderHist(){
+  const w=$('histWrap'), tol=last.tol, act=actIdx();
+  if(!S.pts.length){ w.innerHTML='<p class="hist-empty">ยังไม่มีจุดรองรับ</p>'; return; }
+  const stats=S.rounds.map((rd,ri)=>roundStats(ri));
+  if(!stats.some(st=>st.nMeas)){ w.innerHTML='<p class="hist-empty">ยังไม่มีค่าวัด กรอกค่าในตารางด้านบนแล้วประวัติจะขึ้นที่นี่</p>'; return; }
+  const head=`<thead><tr><th scope="col">รอบวัด</th>${S.pts.map(p=>`<th scope="col">${esc(p.id)}</th>`).join('')}
+    <th scope="col" class="tot">น้ำหนักรวม</th><th scope="col" class="tot">ต่างจากเป้าสูงสุด</th><th scope="col" class="tot">ผ่านเกณฑ์</th></tr></thead>`;
+  const body=stats.map(st=>{
+    const cells=st.R.map((r,i)=>{
+      const dv=st.devs[i];
+      const cl=dv==null?'':Math.abs(dv)<=tol?'st-ok':Math.abs(dv)<=2*tol?'st-warn':'st-bad';
+      return `<td class="${cl}">${r.F==null?'–':`<b>${fmt(r.F,0)}</b><small>${sgn(dv,1)}%</small>`}</td>`;
+    }).join('');
+    const rd=S.rounds[st.ri];
+    return `<tr class="${st.ri===act?'act':''}"><th scope="row">${esc(rd.label)}${rd.note?`<small>${esc(rd.note)}</small>`:''}${st.ri===act?'<small>ใช้คำนวณอยู่</small>':''}</th>
+      ${cells}<td class="tot">${st.sumF==null?'–':fmt(st.sumF,0)+' kg'}</td>
+      <td class="tot">${st.maxDev==null?'–':fmt(st.maxDev,1)+'%'}</td>
+      <td class="tot">${st.nMeas?`${st.nOk} / ${st.R.length}`:'–'}</td></tr>`;
+  }).join('');
+  const done=stats.filter(st=>st.maxDev!=null);
+  let foot='';
+  if(done.length>1){
+    const a=done[0], b=done[done.length-1], dd=b.maxDev-a.maxDev;
+    foot=`<p class="hist-foot">จาก ${esc(S.rounds[a.ri].label)} ถึง ${esc(S.rounds[b.ri].label)} ค่าที่ต่างจากเป้าสูงสุด${dd<0?'ลดลง':dd>0?'เพิ่มขึ้น':'เท่าเดิม'} จาก ${fmt(a.maxDev,1)}% เป็น ${fmt(b.maxDev,1)}%${dd>0?' การปรับรอบล่าสุดทำให้แย่ลง ตรวจว่าหมุน bolt ถูกทิศและถูกจุดหรือไม่':''}</p>`;
+  }
+  w.innerHTML=`<table id="tHist">${head}<tbody>${body}</tbody></table>${foot}`;
+}
+
+/* ---------- adjustment sequence ----------
+   Frame treated as rigid on linear springs (3 DOF: heave, pitch, roll).
+   Turning the bolt at point i by s (spring compresses s if the frame held still)
+   also moves the frame, so the other springs pick up / shed load. */
+const TIER={1:'วิกฤติ',2:'ต้องปรับ',3:'ปรับละเอียด'};
+function rigidBasis(R){
+  const n=R.length, xs=R.map(r=>r.x), ys=R.map(r=>r.y);
+  const xm=sum(xs)/n, ym=sum(ys)/n;
+  const sx=(Math.max(...xs)-Math.min(...xs))||1, sy=(Math.max(...ys)-Math.min(...ys))||1;
+  const u=xs.map(x=>(x-xm)/sx), v=ys.map(y=>(y-ym)/sy);
+  const sets=[[()=>1,i=>u[i],i=>v[i]],[()=>1,i=>u[i]],[()=>1,i=>v[i]],[()=>1]];
+  for(const fs of sets){
+    const G=fs.map(f=>fs.map(g=>{let t=0;for(let i=0;i<n;i++) t+=R[i].k*f(i)*g(i);return t;}));
+    if(solve(G,fs.map(()=>0))) return {fs,G};
+  }
+  return null;
+}
+function predict(R,B,s){
+  const {fs,G}=B, n=R.length;
+  const rhs=fs.map(f=>{let t=0;for(let i=0;i<n;i++) t+=R[i].k*s[i]*f(i);return t;});
+  const c=solve(G,rhs)||fs.map(()=>0);
+  return R.map((r,j)=>{ const u=fs.reduce((t,f,m)=>t+c[m]*f(j),0); const d=r.d+s[j]-u; return {d,F:r.k*d,Hl:r.fl!=null?r.fl-d:null}; });
+}
+function tierOf(r,L){
+  if(r.F>r.c.load||r.d>r.c.defl||r.d<0||Math.abs(r.dev)>2*L.tol) return 1;
+  if(r.status==='warn') return 2;
+  return 3;
+}
+function reasonOf(r,L){
+  const a=[];
+  if(r.F>r.c.load) a.push(`Actual ${fmt(r.F,0)} kg เกินพิกัดสปริง ${r.c.load} kg`);
+  if(r.d>r.c.defl) a.push(`ยุบ ${fmt(r.d,1)} mm เกินพิกัด ${fmt(r.c.defl,0)} mm`);
+  if(r.d<0) a.push('ความสูงสปริงที่วัดมากกว่า free length ตรวจค่าวัดก่อน');
+  a.push(`Actual ${r.dev>0?'สูง':'ต่ำ'}กว่าเป้า ${fmt(Math.abs(r.dev),1)}% (${sgn(r.F-r.T,0)} kg)`);
+  return a.join(', ');
+}
+function buildSequence(L){
+  if(!L.all||!L.R.length) return null;
+  const R=L.R, B=rigidBasis(R); if(!B) return null;
+  const cand=R.filter(r=>r.status!=='ok'||Math.abs(r.dd)>=0.5)
+    .map(r=>({r,tier:tierOf(r,L)}))
+    .sort((a,b)=>a.tier-b.tier||Math.abs(b.r.dev)-Math.abs(a.r.dev));
+  const s=R.map(()=>0), over=(o,st)=>st.F>o.c.load+0.5||st.d>o.c.defl+0.05;
+  let prev=predict(R,B,s);
+  const steps=cand.map((c,k)=>{
+    s[c.r.i]=c.r.dd;
+    const now=predict(R,B,s), me=now[c.r.i];
+    const eff=R.filter(o=>o.i!==c.r.i).map(o=>({id:o.p.id,dF:now[o.i].F-prev[o.i].F}))
+      .sort((a,b)=>Math.abs(b.dF)-Math.abs(a.dF)).slice(0,2);
+    const risks=R.filter(o=>o.i!==c.r.i&&over(o,now[o.i])&&!over(o,prev[o.i]))
+      .map(o=>({id:o.p.id,F:now[o.i].F,rated:o.c.load,d:now[o.i].d}));
+    prev=now;
+    return {...c,n:k+1,after:me,eff,risks,reason:reasonOf(c.r,L)};
+  });
+  const devs=R.map(r=>r.T?Math.abs((prev[r.i].F-r.T)/r.T*100):0);
+  return {steps,order:Object.fromEntries(steps.map(st=>[st.r.i,st])),finalMaxDev:Math.max(...devs)};
+}
+
+function renderCmp(){
+  const L=last, R=L.R, t=$('tCmp');
+  if(!R.length){ t.innerHTML=''; return; }
+  const cells=f=>R.map(f).join('');
+  const tot=v=>`<td class="tot">${v}</td>`;
+  t.innerHTML=`<thead><tr><th scope="col">โหลดแต่ละจุด</th>${cells(r=>`<th scope="col">${esc(r.p.id)}</th>`)}<th scope="col" class="tot">รวม</th></tr></thead><tbody>
+    <tr><th scope="row">Datasheet<small>kg</small></th>${cells(r=>`<td>${fmt(r.ds,0)}</td>`)}${tot(fmt(L.sumDs,0))}</tr>
+    <tr class="act"><th scope="row">Actual<small>kg จากการวัด</small></th>${cells(r=>`<td class="${r.F==null?'':'st-'+r.status}">${r.F==null?'–':fmt(r.F,0)}</td>`)}${tot(L.sumF==null?'–':fmt(L.sumF,0))}</tr>
+    <tr><th scope="row">เป้าหมาย<small>kg</small></th>${cells(r=>`<td>${fmt(r.T,0)}</td>`)}${tot(fmt(L.sumT,0))}</tr>
+    <tr><th scope="row">Actual − เป้า<small>%</small></th>${cells(r=>`<td>${r.F==null?'–':sgn(r.dev,1)}</td>`)}${tot(L.sumF==null||!L.sumT?'–':sgn((L.sumF-L.sumT)/L.sumT*100,1))}</tr>
+    <tr><th scope="row">Free length Actual<small>mm</small></th>${cells(r=>`<td>${r.fl==null?'–':fmt(r.fl,1)}</td>`)}<td class="tot"></td></tr>
+    <tr><th scope="row">ระยะยุบ Actual<small>mm</small></th>${cells(r=>`<td class="${r.d==null?'':'st-'+r.status}">${r.d==null?'–':fmt(r.d,1)}</td>`)}<td class="tot"></td></tr>
+    <tr><th scope="row">ระยะยุบเป้าหมาย<small>mm</small></th>${cells(r=>`<td>${fmt(r.targetD,1)}</td>`)}<td class="tot"></td></tr>
+    <tr><th scope="row">ความสูงสปริงเป้าหมาย<small>mm</small></th>${cells(r=>`<td>${r.targetH==null?'–':fmt(r.targetH,1)}</td>`)}<td class="tot"></td></tr>
+    <tr><th scope="row">สปริง<small>พิกัด kg</small></th>${cells(r=>`<td>${esc(r.c.short)}<small>${fmt(r.c.load,0)}</small></td>`)}<td class="tot"></td></tr>
+    <tr><th scope="row">ลำดับปรับ</th>${cells(r=>{const st=L.seq&&L.seq.order[r.i];return `<td>${st?`<span class="ord t${st.tier}">${st.n}</span>`:'–'}</td>`;})}<td class="tot"></td></tr>
+  </tbody>`;
+}
+
+function renderSeq(){
+  const L=last, w=$('seqWrap'), hm=S.set.mode==='height';
+  if(!L.R.length){ w.innerHTML='<p class="seq-empty">ยังไม่มีจุดรองรับ</p>'; return; }
+  if(!L.all){ w.innerHTML=`<p class="seq-empty">กรอกค่าวัดให้ครบทุกจุด (ตอนนี้ ${L.nMeas} จาก ${L.R.length}) แล้วโปรแกรมจะจัดลำดับจุดที่ต้องปรับให้</p>`; return; }
+  if(!L.seq){ w.innerHTML='<p class="seq-empty">คำนวณลำดับไม่ได้ ตรวจพิกัด X, Y ของจุดรองรับ</p>'; return; }
+  const st=L.seq.steps;
+  if(!st.length){ w.innerHTML=`<p class="seq-empty">ไม่มีจุดที่ต้องปรับ ทุกจุดอยู่ในเกณฑ์ ±${L.tol}%</p>`; return; }
+  const rows=st.map(x=>{
+    const r=x.r, a=Math.abs(r.dd);
+    const eff=x.eff.filter(e=>Math.abs(e.dF)>=1).map(e=>`${esc(e.id)} ${sgn(e.dF,0)} kg`).join(', ')||'น้อยมาก';
+    const risk=x.risks.map(k=>`<span class="risk">ระวัง ${esc(k.id)} จะรับ ${fmt(k.F,0)} kg / ยุบ ${fmt(k.d,1)} mm เกินพิกัดชั่วคราว</span>`).join('');
+    return `<tr class="t${x.tier}">
+      <td class="n"><span class="ord t${x.tier}">${x.n}</span></td>
+      <td><span class="pid">${esc(r.p.id)}</span><span class="tier t${x.tier}">${TIER[x.tier]}</span></td>
+      <td class="why">${x.reason}</td>
+      <td><b>${r.dd>0?'ยุบเพิ่ม':'คลาย'} ${fmt(a,1)} mm</b><small>≈ ${turnsText(r.turns)}, ${r.dd>0?'เพิ่มโหลด':'ลดโหลด'}</small></td>
+      <td><b>${hm?fmt(x.after.Hl,1)+' mm':fmt(x.after.d,1)+' mm'}</b><small>${hm?'ยุบ '+fmt(x.after.d,1)+' mm, ':''}≈ ${fmt(x.after.F,0)} kg</small></td>
+      <td>${eff}${risk}</td></tr>`;
+  }).join('');
+  const fin=L.seq.finalMaxDev;
+  w.innerHTML=`<table id="tSeq"><thead><tr><th class="n" scope="col">ลำดับ</th><th scope="col">จุด</th><th scope="col">เหตุผล</th>
+    <th scope="col">ปรับ bolt</th><th scope="col">${hm?'ความสูงสปริงที่ควรอ่านได้หลังปรับ':'ระยะยุบที่ควรได้หลังปรับ'}</th><th scope="col">ผลต่อจุดอื่น (มากสุด 2 จุด)</th></tr></thead>
+    <tbody>${rows}</tbody></table>
+    <p class="seq-foot">ปรับครบ ${st.length} ขั้นแล้ว คาดว่าทุกจุดต่างจากเป้าไม่เกิน ${fmt(fin,1)}%${fin>L.tol?` ซึ่งยังเกินเกณฑ์ ±${L.tol}% เพราะเป้าตาม datasheet ไม่สอดคล้องกับน้ำหนักหรือ CG จริง`:''} (สมมติเฟรมแข็งเกร็ง ค่าจริงให้ยืนยันด้วยการวัดรอบถัดไป)</p>`;
+}
+
+/* ---------- rendering ---------- */
+function updateHeader(){
+  const n=S.pts.length;
+  $('unitHint').textContent = n
+    ? `${n} จุดรองรับ, น้ำหนักรวมตาม datasheet ${fmt(last?last.sumDs:0,0)} kg — แก้จุดรองรับ, น้ำหนักรายจุด และรุ่นสปริงได้ที่หัวข้อ "ข้อมูลเครื่องและ spring mount" ด้านล่าง`
+    : 'ยังไม่มีจุดรองรับ เลือกเครื่องจากรายการ หรือกด "เริ่มอุปกรณ์ใหม่" ในหัวข้อข้อมูลเครื่องด้านล่าง';
+  $('hTag').textContent=S.unit.tag||'Spring isolator balancing';
+  $('hSub').textContent=[S.unit.model,S.unit.building].filter(Boolean).join(', ')+(S.unit.model||S.unit.building?' | ':'')+'spring isolator balancing — วัดเฉพาะตัวสปริง ไม่รวม housing';
+  document.title=(S.unit.tag?S.unit.tag+' ':'')+'spring balancing';
+}
+
+function renderMain(){
+  const hm=S.set.mode==='height';
+  $('modeHint').textContent = hm
+    ? 'วัดเฉพาะตัวสปริง ไม่รวม housing: กรอก free length ของสปริงแต่ละตัว และความสูงสปริงขณะรับโหลดในคอลัมน์ของรอบวัด คอลัมน์ที่ไฮไลต์คือรอบที่ใช้คำนวณ'
+    : 'กรอกระยะยุบของตัวสปริงที่วัดได้โดยตรง (mm) ในคอลัมน์ของรอบวัด ถ้ากรอก free length ด้วย จะแสดงความสูงสปริงเป้าหมายให้';
+  const act=actIdx();
+  const rndCols=S.rounds.map((rd,ri)=>`<th scope="col" class="rnd${ri===act?' act':''}" data-r="${ri}" title="คลิกเพื่อใช้รอบนี้คำนวณ"><span class="rlab">${esc(rd.label)}</span><span class="rsub">${hm?'ความสูงสปริง':'ระยะยุบ'}, mm${ri===act?' • ใช้คำนวณ':''}</span>${S.rounds.length>1?`<button class="rdel" data-del-r="${ri}" title="ลบ ${esc(rd.label)}" aria-label="ลบ ${esc(rd.label)}">×</button>`:''}</th>`).join('');
+  let h=`<thead><tr><th scope="col">จุด / mount</th><th scope="col">Free length<br><small>Actual, mm</small></th>
+    ${rndCols}<th scope="col">${hm?'ระยะยุบ':'ความสูงสปริง'}<br><small>รอบที่ใช้, mm</small></th>
+    <th scope="col" class="tgt">ระยะยุบเป้าหมาย<br><small>mm</small></th><th scope="col" class="tgt">ความสูงสปริงเป้าหมาย<br><small>Free length − ยุบเป้า, mm</small></th>
+    <th scope="col">โหลด<br><small>Actual, kg</small></th><th scope="col">โหลดเป้าหมาย<br><small>kg</small></th>
+    <th scope="col">Actual − เป้า</th>
+    <th scope="col">ระยะปรับ bolt</th><th scope="col">สถานะ</th><th scope="col">ลำดับ</th></tr></thead><tbody>`;
+  S.pts.forEach((p,i)=>{
+    const c=springOf(p);
+    const inps=S.rounds.map((rd,ri)=>{
+      const prev=ri>0?num(measAt(p,ri-1)):NaN, cur=num(measAt(p,ri));
+      const dlt=(isFinite(prev)&&isFinite(cur))?`<small>${sgn(cur-prev,1)} mm</small>`:'';
+      return `<td class="rcell"><input class="num meas${ri===act?' act':''}" data-i="${i}" data-r="${ri}" inputmode="decimal" autocomplete="off" value="${esc(measAt(p,ri))}" aria-label="${hm?'ความสูงสปริง':'ระยะยุบ'} ${esc(p.id)} ${esc(rd.label)}">${dlt}</td>`;
+    }).join('');
+    const flIn=`<input class="num fl" data-i="${i}" data-f="fl" inputmode="decimal" autocomplete="off" placeholder="ใส่ค่า" value="${esc(p.fl)}" aria-label="Free length สปริง ${esc(p.id)}">`;
+    h+=`<tr id="r${i}"><th scope="row"><span class="pid">${esc(p.id)}</span>
+      <span class="mt">${c.color?`<i class="sw" style="${swStyle(c.color)}"></i>`:''}${esc(c.short)} ${c.color?esc(c.color):fmt(c.load,0)+' kg'}</span></th>
+      <td>${flIn}</td>
+      ${inps}
+      <td>${hm?'<span class="c-d"></span>':'<span class="c-Hl"></span>'}</td>
+      <td class="c-tD tgt"></td><td class="c-tH tgt"></td><td class="c-F"></td><td class="c-T"></td><td class="c-e"></td><td class="c-adj"></td><td class="c-st"></td><td class="c-ord"></td></tr>`;
+  });
+  h+=`</tbody><tfoot><tr><th scope="row">รวม</th><td colspan="${4+S.rounds.length}"></td><td class="c-sumF"></td><td class="c-sumT"></td><td colspan="4"></td></tr></tfoot>`;
+  $('tMain').innerHTML=h;
+  renderFlBar(); renderRTools();
+}
+
+function updateMain(){
+  const {R}=last, hm=S.set.mode==='height';
+  R.forEach(r=>{
+    const tr=$('r'+r.i); if(!tr) return;
+    tr.className='s-'+r.status;
+    if(hm) q(tr,'.c-d').innerHTML = r.needFl?'<small class="t-warn">ใส่ free length</small>':r.d==null?'–':fmt(r.d,1)+(r.d>r.c.defl?'<small class="t-warn">เกินพิกัด</small>':r.d<0?'<small class="t-warn">ตรวจค่า</small>':'');
+    else q(tr,'.c-Hl').textContent = r.Hl==null?'–':fmt(r.Hl,1);
+    q(tr,'.c-F').textContent = r.F==null?'–':fmt(r.F,0);
+    q(tr,'.c-T').innerHTML = fmt(r.T,0)+(Math.abs(r.T-r.ds)>=0.5?`<small>datasheet ${fmt(r.ds,0)}</small>`:'');
+    q(tr,'.c-e').innerHTML = r.F==null?'–':`${sgn(r.F-r.T,0)} kg<small>${sgn(r.dev,1)}%</small>`;
+    q(tr,'.c-tD').innerHTML = `<b>${fmt(r.targetD,1)}</b>`+(r.d!=null?`<small>Actual ${sgn(r.d-r.targetD,1)} mm</small>`:'');
+    q(tr,'.c-tH').innerHTML = r.targetH!=null
+      ? `<b>${fmt(r.targetH,1)}</b><small>${fmt(r.fl,1)} − ${fmt(r.targetD,1)}${r.Hl!=null?`, Actual ${sgn(r.Hl-r.targetH,1)}`:''}</small>`
+      : '–<small class="t-warn">ใส่ free length</small>';
+    let adj='–';
+    if(r.F!=null){
+      const a=Math.abs(r.dd);
+      if(r.status==='ok') adj='<span class="muted">อยู่ในเกณฑ์</span>';
+      else adj=`<b>${r.dd>0?'ยุบเพิ่ม':'คลาย'} ${fmt(a,1)} mm</b><small>≈ ${turnsText(r.turns)}, ${r.dd>0?'เพิ่มโหลด':'ลดโหลด'}</small>`;
+    }
+    q(tr,'.c-adj').innerHTML=adj;
+    q(tr,'.c-st').innerHTML = r.status==='none'?'–':`<span class="tag ${r.status}">${{ok:'ผ่าน',warn:'ใกล้เกณฑ์',bad:'ต้องปรับ'}[r.status]}</span>`;
+    const st=last.seq&&last.seq.order[r.i];
+    q(tr,'.c-ord').innerHTML = st?`<span class="ord t${st.tier}" title="${TIER[st.tier]}">${st.n}</span>`:'–';
+  });
+  q($('tMain'),'.c-sumF').textContent = last.sumF==null?'–':fmt(last.sumF,0);
+  q($('tMain'),'.c-sumT').textContent = fmt(last.sumT,0);
+}
+
+function renderSetup(){
+  let h=`<thead><tr><th>จุด</th><th>X (mm)</th><th>Y (mm)</th><th>น้ำหนักที่จุดนี้<br><small>datasheet, kg</small></th>
+    <th>สปริง</th><th>ชื่อ/รุ่น<br><small>กรณีกำหนดเอง</small></th><th>พิกัดรับน้ำหนัก<br><small>kg</small></th>
+    <th>ยุบที่พิกัด<br><small>mm</small></th><th>k<br><small>kg/mm</small></th><th>ใช้พิกัด</th><th></th></tr></thead><tbody>`;
+  const gdef=(+S.set.defl>0)?+S.set.defl:25;
+  S.pts.forEach((p,i)=>{
+    const cat=byModel[p.mount];
+    const brands=[...new Set(CAT.map(x=>x.brand))];
+    const opts=`<option value="custom"${cat?'':' selected'}>กำหนดเอง (ใส่พิกัดเอง)</option>`+
+      brands.map(bn=>`<optgroup label="${esc(bn)}">`+CAT.filter(x=>x.brand===bn)
+        .map(x=>`<option value="${x.m}"${x.m===p.mount?' selected':''}>${x.m} — ${x.load} kg, ${x.color}${x.note?' ('+x.note+')':''}</option>`).join('')+'</optgroup>').join('');
+    h+=`<tr data-i="${i}">
+      <td><input class="txt" data-i="${i}" data-f="id" value="${esc(p.id)}" aria-label="ชื่อจุด"></td>
+      <td><input class="num" data-i="${i}" data-f="x" inputmode="decimal" value="${esc(p.x)}" aria-label="X ${esc(p.id)}"></td>
+      <td><input class="num" data-i="${i}" data-f="y" inputmode="decimal" value="${esc(p.y)}" aria-label="Y ${esc(p.id)}"></td>
+      <td><input class="num" data-i="${i}" data-f="ds" inputmode="decimal" value="${esc(p.ds)}" aria-label="น้ำหนักที่จุด ${esc(p.id)}"></td>
+      <td><select data-i="${i}" data-f="mount" aria-label="สปริงของจุด ${esc(p.id)}">${opts}</select></td>
+      <td><input class="txt" data-i="${i}" data-f="cname" value="${esc(p.cname??'')}" placeholder="${cat?esc(cat.m):'เช่น SLF-500'}" ${cat?'disabled':''} aria-label="ชื่อรุ่นสปริง ${esc(p.id)}"></td>
+      <td><input class="num" data-i="${i}" data-f="rload" inputmode="decimal" value="${esc(p.rload??'')}" placeholder="${cat?cat.load:'พิกัด'}" aria-label="พิกัดรับน้ำหนัก ${esc(p.id)}"></td>
+      <td><input class="num" data-i="${i}" data-f="rdefl" inputmode="decimal" value="${esc(p.rdefl??'')}" placeholder="${gdef}" aria-label="ระยะยุบที่พิกัด ${esc(p.id)}"></td>
+      <td class="s-k"></td><td class="s-u"></td>
+      <td><button class="del" data-del="${i}" aria-label="ลบจุด ${esc(p.id)}">ลบ</button></td></tr>`;
+  });
+  $('tSetup').innerHTML=h+'</tbody>';
+}
+function updateSetupCells(){
+  last.R.forEach(r=>{
+    const tr=q($('tSetup'),`tr[data-i="${r.i}"]`); if(!tr) return;
+    q(tr,'.s-k').textContent=fmt(r.k,1);
+    const u=r.util*100;
+    q(tr,'.s-u').innerHTML=`<span class="${u>100?'tag bad':u>100/1.1?'tag warn':''}">${fmt(u,0)}%</span>`;
+  });
+}
+
+function nextModel(r){
+  if(r.c.custom) return '';
+  const need=r.T*1.1, fam=r.c.m.replace(/\d+$/,''), cat=byModel[r.p.mount];
+  const pick=list=>list.filter(x=>x.load>=need).sort((a,b)=>a.load-b.load)[0];
+  const brand=CAT.filter(x=>!cat||x.brand===cat.brand);
+  const c=pick(brand.filter(x=>x.m.replace(/\d+$/,'')===fam))||pick(brand);
+  return c&&c.m!==r.c.m?` พิจารณาเปลี่ยนเป็น ${c.m}`:'';
+}
+
+function renderSummary(){
+  const L=last, R=L.R, tol=L.tol, notes=[];
+  let verdict='', vcls='';
+  if(!R.length){ verdict='ยังไม่มีจุดรองรับ เพิ่มจุดในส่วนข้อมูลเครื่อง'; }
+  else if(L.nMeas===0){ verdict='ยังไม่มีค่าวัด ใช้ระยะยุบเป้าหมายในตารางเป็นค่าตั้งต้นได้เลย'; }
+  else if(!L.all){
+    verdict=`กรอกค่าวัดแล้ว ${L.nMeas} จาก ${R.length} จุด`;
+    notes.push(['info','ต้องกรอกครบทุกจุดจึงจะคำนวณน้ำหนักรวม, CG และปรับเป้าหมายตามน้ำหนักจริงได้ ตอนนี้เทียบกับค่า datasheet ไปก่อน']);
+  } else {
+    const nb=R.filter(r=>r.status!=='ok').length;
+    if(nb===0){ verdict=`สมดุลแล้ว ทุกจุดอยู่ในเกณฑ์ ±${tol}%`; vcls='ok'; }
+    else { verdict=`ต้องปรับอีก ${nb} จาก ${R.length} จุด${L.seq&&L.seq.steps.length?` เริ่มที่ ${esc(L.seq.steps[0].r.p.id)}`:''}`; vcls=R.some(r=>r.status==='bad')?'bad':'warn'; }
+  }
+  const rows=[['น้ำหนักรวม datasheet',`${fmt(L.sumDs,0)} kg`]];
+  if(L.sumF!=null&&L.sumDs>0){
+    const dv=(L.sumF-L.sumDs)/L.sumDs*100;
+    rows.push(['น้ำหนักรวมจากการวัด',`${fmt(L.sumF,0)} kg <small>${sgn(dv,1)}%</small>`]);
+    if(Math.abs(dv)>10) notes.push(['bad',`น้ำหนักรวมจากการวัดต่างจาก datasheet ${sgn(dv,1)}% ตรวจ free length, รุ่นสปริง และตำแหน่งที่วัดก่อนปรับตามตาราง`]);
+    else if(Math.abs(dv)>5) notes.push(['warn',`น้ำหนักรวมจากการวัดต่างจาก datasheet ${sgn(dv,1)}% ถ้าไม่มีน้ำหนักเพิ่ม (เช่น ท่อ, น้ำ, อุปกรณ์ติดตั้งเพิ่ม) ให้ตรวจ free length ของสปริงแต่ละตัว`]);
+  }
+  if(L.cgM&&L.cgD) rows.push(['CG ที่วัดได้ เทียบ datasheet',`X ${sgn(L.cgM.x-L.cgD.x,0)}, Y ${sgn(L.cgM.y-L.cgD.y,0)} mm`]);
+  if(L.all) rows.push([`จุดที่อยู่ในเกณฑ์ ±${tol}%`,`${R.filter(r=>r.status==='ok').length} จาก ${R.length}`]);
+  if(R.length){ const mx=R.reduce((a,r)=>r.util>a.util?r:a,R[0]); rows.push(['ใช้พิกัดสปริงสูงสุด',`${esc(mx.p.id)} ${fmt(mx.util*100,0)}%`]); }
+  rows.push(['โหลดเป้าหมาย',S.set.basis==='matched'?(L.all?'ตามน้ำหนักและ CG ที่วัดได้':'datasheet (รอค่าวัดครบ)'):'ตาม datasheet']);
+
+  R.forEach(r=>{
+    const id=esc(r.p.id);
+    if(r.T<0) notes.push(['bad',`${id}: เป้าหมายติดลบ (${fmt(r.T,0)} kg) ค่าวัดอาจผิด หรือ CG อยู่นอกแนวจุดรองรับ`]);
+    if(r.util>1) notes.push(['bad',`${id}: โหลดเป้าหมาย ${fmt(r.T,0)} kg เกินพิกัด ${r.c.m} (${fmt(r.c.load,0)} kg)${nextModel(r)}`]);
+    else if(r.util>1/1.1) notes.push(['warn',`${id}: ใช้พิกัด ${r.c.m} (${fmt(r.c.load,0)} kg) ถึง ${fmt(r.util*100,0)}% เผื่อไม่ถึง 10% ตามที่ผู้ผลิตแนะนำ (10–15%)${nextModel(r)}`]);
+    if(r.d!=null&&r.d<0) notes.push(['bad',`${id}: ความสูงสปริงที่วัดมากกว่า free length ตรวจค่าที่วัด`]);
+    else if(r.d!=null&&r.d>r.c.defl) notes.push(['warn',`${id}: ระยะยุบ ${fmt(r.d,1)} mm เกินระยะยุบที่พิกัด ${fmt(r.c.defl,0)} mm`]);
+  });
+  const miss=R.filter(r=>r.needFl).map(r=>esc(r.p.id));
+  if(miss.length) notes.push(['warn',`ยังไม่มี free length ของสปริง ${miss.join(', ')} จึงคำนวณระยะยุบจากความสูงที่วัดไม่ได้`]);
+  if(L.all&&S.set.basis==='datasheet'&&L.sumDs>0&&Math.abs(L.sumF-L.sumDs)/L.sumDs>0.02)
+    notes.push(['info','น้ำหนักจริงไม่เท่ากับ datasheet ถ้าตั้งเป้าตาม datasheet ตรง ๆ จะปรับเข้าเป้าไม่ได้ครบทุกจุด แนะนำโหมดตามน้ำหนักและ CG ที่วัดได้']);
+  if(L.all&&L.dof!=null&&L.dof<3) notes.push(['info','จุดรองรับอยู่ในแนวเดียวกัน ปรับเป้าหมายได้เฉพาะน้ำหนักรวมและโมเมนต์แกนเดียว']);
+  if(R.length&&R.length<=3&&S.set.basis==='matched') notes.push(['info',`มีจุดรองรับ ${R.length} จุด โหลดแต่ละจุดถูกกำหนดด้วยน้ำหนักและ CG เท่านั้น (statically determinate) ปรับ bolt จะเปลี่ยนแค่ระดับและความสูงเครื่อง ไม่เปลี่ยนการกระจายโหลด ถ้าต้องการเทียบกับค่าออกแบบ ให้เลือกโหมดเป้าหมายตาม datasheet`]);
+  const uw=+S.unit.weight;
+  if(uw>0&&Math.abs(uw-L.sumDs)/uw>0.01) notes.push(['info',`ผลรวมโหลด datasheet (${fmt(L.sumDs,0)} kg) ไม่เท่ากับน้ำหนักรวมที่ระบุ (${fmt(uw,0)} kg)`]);
+
+  $('summary').innerHTML=`<p class="verdict ${vcls}">${verdict}</p>
+    <dl>${rows.map(([a,b])=>`<div><dt>${a}</dt><dd>${b}</dd></div>`).join('')}</dl>
+    ${notes.length?`<ul class="notes">${notes.map(([c,t])=>`<li class="${c}">${t}</li>`).join('')}</ul>`:''}`;
+}
+
+function drawPlan(){
+  const svg=$('plan'), R=last.R;
+  if(!R.length){ svg.setAttribute('viewBox','0 0 1000 120'); svg.innerHTML='<text x="500" y="64" text-anchor="middle" class="val2">ยังไม่มีจุดรองรับ</text>'; return; }
+  const xs=R.map(r=>r.x), ys=R.map(r=>r.y);
+  const minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys);
+  const W=1000, padX=92, padY=104, padB=132, maxH=700;
+  const spx=maxX-minX, spy=maxY-minY;
+  let sc=Math.min(spx>0?(W-2*padX)/spx:Infinity, spy>0?(maxH-padY-padB)/spy:Infinity);
+  if(!isFinite(sc)) sc=1;
+  const Hh=spy*sc+padY+padB, offX=(W-spx*sc)/2;
+  const px=x=>offX+(x-minX)*sc, py=y=>padY+(maxY-y)*sc;
+  svg.setAttribute('viewBox',`0 0 ${W} ${Hh.toFixed(1)}`);
+  let g='';
+  const fx0=px(minX)-48, fx1=px(maxX)+48, fy0=py(maxY), fy1=py(minY), midY=(fy0+fy1)/2;
+  g+=`<rect class="frame" x="${fx0}" y="${fy0}" width="${fx1-fx0}" height="${Math.max(fy1-fy0,4)}" rx="3"/>`;
+  if(spx>0) g+=`<text class="dim" x="${(fx0+fx1)/2}" y="${Hh-8}" text-anchor="middle">${fmt(spx,0)} mm</text>`;
+  if(spy>0) g+=`<text class="dim" x="${fx0+12}" y="${midY}" dominant-baseline="middle">${fmt(spy,0)} mm</text>`;
+  const FS=1.15, gh=84, gw=15;
+  R.forEach((r,i)=>{
+    const X=px(r.x), Y=py(r.y), top=(spy===0)||Y<=midY+0.1;
+    const gx=X-15-gw, gy=Y-gh/2;
+    const val=r.F!=null?r.F:r.T;
+    const frac=Math.max(0,Math.min(val/r.c.load,FS)), tfrac=Math.max(0,Math.min(r.T/r.c.load,FS));
+    const fh=frac/FS*gh, capY=gy+gh-gh/FS, tY=gy+gh-tfrac/FS*gh;
+    const cls=r.F==null?'none':r.status;
+    const ly1= top? gy-30 : gy+gh+26, ly2= top? gy-11 : gy+gh+45;
+    const line2 = r.F==null ? 'เป้า' : `${sgn(r.dev,1)}%`;
+    g+=`<g class="pt" tabindex="0" role="button" data-i="${i}" aria-label="${esc(r.p.id)} โหลด ${fmt(val,0)} kg">
+      ${ (last.seq&&last.seq.order[i]) ? `<g class="bdg t${last.seq.order[i].tier}"><circle cx="${X}" cy="${Y}" r="12"/><text x="${X}" y="${Y+5}" text-anchor="middle">${last.seq.order[i].n}</text></g>` : `<circle class="node" cx="${X}" cy="${Y}" r="5"/>` }
+      <rect class="track" x="${gx}" y="${gy}" width="${gw}" height="${gh}" rx="2"/>
+      <rect class="f-${cls}" x="${gx}" y="${gy+gh-fh}" width="${gw}" height="${fh}" rx="2"/>
+      <line class="cap" x1="${gx}" x2="${gx+gw}" y1="${capY}" y2="${capY}"/>
+      <line class="tick" x1="${gx-4}" x2="${gx+gw+4}" y1="${tY}" y2="${tY}"/>
+      <text class="lbl" x="${gx+gw/2}" y="${ly1}" text-anchor="middle">${esc(r.p.id)}</text>
+      <text class="lbl2" x="${gx+gw/2}" y="${ly2}" text-anchor="middle">${esc(r.c.short)}</text>
+      <text class="val" x="${X+16}" y="${Y-3}">${fmt(val,0)}</text>
+      <text class="val2" x="${X+16}" y="${Y+17}">${line2}</text>
+    </g>`;
+  });
+  if(last.cgD){ const X=px(last.cgD.x), Y=py(last.cgD.y);
+    g+=`<circle class="cgd" cx="${X}" cy="${Y}" r="8"/><line class="cgd" x1="${X-13}" x2="${X+13}" y1="${Y}" y2="${Y}"/><line class="cgd" x1="${X}" x2="${X}" y1="${Y-13}" y2="${Y+13}"/>`; }
+  if(last.cgM){ const X=px(last.cgM.x), Y=py(last.cgM.y);
+    if(last.cgD) g+=`<line class="cgl" x1="${px(last.cgD.x)}" y1="${py(last.cgD.y)}" x2="${X}" y2="${Y}"/>`;
+    g+=`<circle class="cgm" cx="${X}" cy="${Y}" r="6"/>`; }
+  svg.innerHTML=g;
+}
+
+/* ---------- controls ---------- */
+function syncControls(){
+  $('uTag').value=S.unit.tag; $('uBldg').value=S.unit.building; $('uModel').value=S.unit.model; $('uW').value=S.unit.weight;
+  $('sDefl').value=S.set.defl; $('sTol').value=S.set.tol; $('sPitch').value=S.set.pitch;
+  document.querySelectorAll('input[name=basis]').forEach(r=>r.checked=r.value===S.set.basis);
+  document.querySelectorAll('input[name=mode]').forEach(r=>r.checked=r.value===S.set.mode);
+}
+function applyState(){ syncControls(); renderSetup(); renderMain(); compute(); }
+
+function renderRTools(){
+  const act=actIdx(), rd=S.rounds[act];
+  $('rTools').innerHTML=`<span class="lead">รอบที่ใช้คำนวณ</span>
+    <input id="rLabel" value="${esc(rd.label)}" aria-label="ชื่อรอบวัด">
+    <input id="rNote" value="${esc(rd.note||'')}" placeholder="บันทึก เช่น หลังปรับ A8" style="width:230px" aria-label="บันทึกของรอบวัด">
+    ${S.rounds.length>1?'<button id="bDelR">ลบรอบนี้</button>':''}`;
+}
+$('rTools').addEventListener('input',e=>{
+  const rd=S.rounds[actIdx()];
+  if(e.target.id==='rLabel'){ rd.label=e.target.value; renderHist(); const l=q($('tMain'),`th.rnd[data-r="${actIdx()}"] .rlab`); if(l) l.textContent=rd.label; }
+  if(e.target.id==='rNote'){ rd.note=e.target.value; renderHist(); }
+});
+$('rTools').addEventListener('click',e=>{ if(e.target.id==='bDelR') delRound(actIdx()); });
+$('bAddR').onclick=()=>{
+  S.rounds.push({label:`รอบ ${S.rounds.length+1}`,note:''});
+  S.pts.forEach(p=>{ if(!Array.isArray(p.m)) p.m=[]; while(p.m.length<S.rounds.length) p.m.push(''); });
+  S.set.act=S.rounds.length-1;
+  renderMain(); compute();
+  toast(`เพิ่ม ${S.rounds[S.set.act].label} แล้ว กรอกค่าที่วัดหลังปรับได้เลย`);
+  const f=q($('tMain'),`input.meas[data-r="${S.set.act}"]`); if(f) f.focus();
+};
+
+/* free length quick-fill by spring model */
+function springKey(p){ const c=springOf(p); return c.custom?`${c.short} ${fmt(c.load,0)}kg`:c.short; }
+function renderFlBar(){
+  const models=[...new Set(S.pts.map(springKey))];
+  if(!models.length){ $('flBar').innerHTML=''; return; }
+  const common=m=>{ const v=[...new Set(S.pts.filter(p=>springKey(p)===m).map(p=>String(p.fl??'')))]; return v.length===1?v[0]:''; };
+  $('flBar').innerHTML=`<span class="lead">Free length ตามรุ่น (mm)</span>`+
+    models.map(m=>`<label>${esc(m)}<input class="num" data-model="${esc(m)}" inputmode="decimal" value="${esc(common(m))}" placeholder="–"></label>`).join('')+
+    `<button id="bFl">ใส่ให้ทุกจุดตามรุ่น</button>`;
+}
+$('flBar').addEventListener('click',e=>{
+  if(e.target.id!=='bFl') return;
+  let n=0;
+  $('flBar').querySelectorAll('input[data-model]').forEach(inp=>{
+    const v=inp.value.trim(); if(v===''||!isFinite(+v)) return;
+    S.pts.forEach(p=>{ if(springKey(p)===inp.dataset.model){ p.fl=v; n++; } });
+  });
+  renderMain(); compute(); toast(n?`ใส่ free length ให้ ${n} จุดแล้ว`:'กรอกค่า free length ของรุ่นที่ต้องการก่อน');
+});
+
+$('tMain').addEventListener('input',e=>{
+  const t=e.target;
+  if(t.classList.contains('meas')){ setMeas(S.pts[+t.dataset.i],+t.dataset.r,t.value.trim()); compute(); return; }
+  if(t.dataset.f==='fl'){ S.pts[+t.dataset.i].fl=t.value.trim(); compute(); }
+});
+$('tMain').addEventListener('change',e=>{ if(e.target.dataset.f==='fl') renderFlBar(); });
+function delRound(i){
+  if(S.rounds.length<2){ toast('ต้องมีรอบวัดอย่างน้อย 1 รอบ'); return; }
+  const rd=S.rounds[i], snap=snapshot();
+  S.rounds.splice(i,1); S.pts.forEach(p=>p.m.splice(i,1));
+  S.set.act=Math.min(actIdx()>i?actIdx()-1:actIdx(),S.rounds.length-1);
+  renderMain(); compute(); toast(`ลบ ${rd.label} แล้ว`,undoTo(snap));
+}
+$('tMain').addEventListener('click',e=>{
+  const del=e.target.closest('[data-del-r]');
+  if(del){ e.stopPropagation(); delRound(+del.dataset.delR); return; }
+  const th=e.target.closest('th.rnd'); if(!th) return;
+  S.set.act=+th.dataset.r; renderMain(); compute();
+});
+$('tSetup').addEventListener('input',e=>{
+  const t=e.target, f=t.dataset.f; if(!f||t.tagName==='SELECT') return;
+  const p=S.pts[+t.dataset.i]; p[f]=t.value;
+  if(f==='id'||f==='cname'||f==='rload'||f==='rdefl') renderMain();
+  compute();
+});
+$('tSetup').addEventListener('change',e=>{
+  const t=e.target; if(t.tagName!=='SELECT') return;
+  const p=S.pts[+t.dataset.i]; p.mount=t.value;
+  if(t.value!=='custom'){ p.rload=''; p.rdefl=''; }
+  renderSetup(); renderMain(); compute();
+});
+$('tSetup').addEventListener('click',e=>{
+  const b=e.target.closest('[data-del]'); if(!b) return;
+  const i=+b.dataset.del, snap=snapshot(), id=S.pts[i].id;
+  S.pts.splice(i,1); renderSetup(); renderMain(); compute(); toast(`ลบจุด ${id} แล้ว`,undoTo(snap));
+});
+$('bAdd').onclick=()=>{ S.pts.push({id:'P'+(S.pts.length+1),x:0,y:0,ds:0,mount:'custom',cname:'',rload:'',rdefl:'',fl:'',m:Array(nRounds()).fill('')}); renderSetup(); renderMain(); compute(); };
+$('bEqual').onclick=()=>{
+  const w=+S.unit.weight;
+  if(!(w>0)){ toast('ใส่น้ำหนักรวมของอุปกรณ์ก่อน'); $('uW').focus(); return; }
+  if(!S.pts.length){ toast('เพิ่มจุดรองรับก่อน'); return; }
+  const v=Math.round(w/S.pts.length*10)/10;
+  const snap=snapshot();
+  S.pts.forEach(p=>p.ds=v); renderSetup(); renderMain(); compute();
+  toast(`กระจายเท่ากันจุดละ ${fmt(v,1)} kg แล้ว ถ้า CG เยื้อง ให้แก้รายจุดตามจริง`,undoTo(snap));
+};
+$('bNew').onclick=()=>{
+  const n=parseInt($('nPts').value,10);
+  if(!(n>=1&&n<=40)){ toast('ใส่จำนวนจุด 1–40'); $('nPts').focus(); return; }
+  const snap=snapshot();
+  S={unit:{tag:'',building:'',model:'',weight:''},
+     set:{defl:25,tol:5,basis:'matched',mode:'height',pitch:'',act:0},
+     rounds:[{label:'รอบ 1',note:''}],
+     pts:Array.from({length:n},(_,i)=>({id:'P'+(i+1),x:'',y:'',ds:'',mount:'custom',cname:'',rload:'',rdefl:'',fl:'',m:['']}))};
+  applyState(); $('setup').open=true; $('uTag').focus();
+  toast(`สร้าง ${n} จุดแล้ว ใส่ชื่อจุด พิกัด X Y น้ำหนักรายจุด และพิกัดสปริงได้เลย`,undoTo(snap));
+};
+function fillPresets(){
+  $('selPreset').innerHTML='<option value="">เลือกเครื่อง…</option>'+
+    PRESETS.map(x=>`<option value="${x.id}">${esc(x.label)}</option>`).join('');
+}
+$('selPreset').addEventListener('change',e=>{
+  const x=PRESETS.find(y=>y.id===e.target.value); e.target.value='';
+  if(!x) return;
+  const snap=snapshot();
+  S=x.build(); applyState(); toast(`โหลด ${S.unit.tag} แล้ว`,undoTo(snap));
+});
+[['uTag','tag'],['uBldg','building'],['uModel','model'],['uW','weight']].forEach(([id,k])=>$(id).addEventListener('input',e=>{S.unit[k]=e.target.value;compute();}));
+[['sDefl','defl'],['sTol','tol'],['sPitch','pitch']].forEach(([id,k])=>$(id).addEventListener('input',e=>{S.set[k]=e.target.value;compute();}));
+document.querySelectorAll('input[name=basis]').forEach(r=>r.addEventListener('change',()=>{S.set.basis=r.value;compute();}));
+document.querySelectorAll('input[name=mode]').forEach(r=>r.addEventListener('change',()=>{
+  const was=S.set.mode; S.set.mode=r.value;
+  S.pts.forEach(p=>{ const fl=num(p.fl); (p.m||[]).forEach((v,ri)=>{ const mv=num(v); if(!isFinite(mv)) return; p.m[ri]=isFinite(fl)?String(Math.round((fl-mv)*10)/10):''; }); });
+  if(was!==S.set.mode){ renderMain(); compute(); }
+}));
+$('plan').addEventListener('click',e=>{ const g=e.target.closest('.pt'); if(g) focusMeas(+g.dataset.i); });
+$('plan').addEventListener('keydown',e=>{ if(e.key!=='Enter'&&e.key!==' ') return; const g=e.target.closest('.pt'); if(g){e.preventDefault();focusMeas(+g.dataset.i);} });
+function focusMeas(i){ const inp=q($('tMain'),`input.meas[data-i="${i}"][data-r="${actIdx()}"]`); if(inp){ inp.scrollIntoView({block:'center',behavior:'smooth'}); inp.focus({preventScroll:true}); inp.select(); } }
+
+$('bEx').onclick=()=>{
+  const mult=[1.08,0.90,1.06,0.87,1.12,0.94,0.93,1.10];
+  const defl=(+S.set.defl>0)?+S.set.defl:25;
+  let filled=0; const ri=actIdx(), scat=Math.max(1-0.55*ri,0.15);
+  S.pts.forEach((p,i)=>{
+    if(S.set.mode==='height'&&(p.fl===''||!isFinite(+p.fl))){ p.fl='100'; filled++; }
+    const k=springOf(p).k||1; const d=(+p.ds*(1+(mult[i%mult.length]-1)*scat))/k;
+    const v=S.set.mode==='height'?(+p.fl-d):d; setMeas(p,ri,String(Math.round(v*2)/2)); });
+  renderMain(); compute();
+  toast(filled?'ใส่ค่าตัวอย่างแล้ว (free length ที่ว่างใส่ 100 mm ไว้ ให้แก้เป็นค่าจริง)':'ใส่ค่าวัดตัวอย่างแล้ว');
+};
+$('bClr').onclick=()=>{ const ri=actIdx(), snap=snapshot(); S.pts.forEach(p=>setMeas(p,ri,'')); renderMain(); compute(); toast(`ล้างค่าที่วัดใน ${S.rounds[ri].label} แล้ว`,undoTo(snap)); };
+
+/* ---------- save / export ---------- */
+const localStore={
+  async list(prefix){ return {keys:Object.keys(localStorage).filter(k=>k.startsWith(prefix)).sort()}; },
+  async get(k){ const v=localStorage.getItem(k); if(v==null) throw new Error('not found'); return {key:k,value:v}; },
+  async set(k,v){ localStorage.setItem(k,v); return {key:k,value:v}; },
+  async delete(k){ localStorage.removeItem(k); return {key:k,deleted:true}; }
+};
+function pickStore(){
+  if(typeof window!=='undefined'&&window.storage&&typeof window.storage.get==='function') return window.storage;
+  try{ localStorage.setItem('__t','1'); localStorage.removeItem('__t'); return localStore; }catch(e){ return null; }
+}
+const store=pickStore();
+const KP='spring-balance:';
+const keyOf=t=>KP+((String(t||'').trim().replace(/[\s\/\\'"]+/g,'_').slice(0,150))||'unit');
+function normalize(o){
+  const d=defaultState();
+  const rounds=(Array.isArray(o&&o.rounds)&&o.rounds.length)
+    ? o.rounds.map((r,i)=>({label:r.label||`รอบ ${i+1}`,note:r.note||''})) : [{label:'รอบ 1',note:''}];
+  const pts=Array.isArray(o&&o.pts)?o.pts.map((p,i)=>{
+    const m=Array.isArray(p.m)?p.m.slice():(p.meas!=null?[p.meas]:['']);
+    while(m.length<rounds.length) m.push('');
+    m.length=rounds.length;
+    return {id:p.id??`P${i+1}`,x:p.x??0,y:p.y??0,ds:p.ds??0,
+      mount:byModel[p.mount]?p.mount:'custom',cname:p.cname??'',rload:p.rload??'',rdefl:p.rdefl??'',fl:p.fl??'',m};
+  }):d.pts;
+  const set={...d.set,...(o&&o.set)};
+  set.act=Math.min(Math.max(+set.act||0,0),rounds.length-1);
+  return {unit:{...d.unit,...(o&&o.unit)},set,rounds,pts};
+}
+async function refreshList(){
+  const sel=$('selLoad');
+  if(!store){ sel.hidden=true; $('bSave').hidden=true; return; }
+  let keys=[];
+  try{ const r=await store.list(KP,false); keys=((r&&r.keys)||[]).map(k=>typeof k==='string'?k:k.key).filter(Boolean); }catch(e){}
+  sel.innerHTML=`<option value="">${keys.length?'เปิดงานที่บันทึกไว้':'ยังไม่มีงานที่บันทึก'}</option>`+
+    keys.map(k=>`<option value="${esc(k)}">${esc(k.slice(KP.length))}</option>`).join('');
+}
+$('bSave').onclick=async()=>{
+  if(!store) return;
+  try{ const r=await store.set(keyOf(S.unit.tag),JSON.stringify(S),false); if(!r) throw 0; toast(`บันทึก ${S.unit.tag} แล้ว`); refreshList(); }
+  catch(e){ toast('บันทึกไม่สำเร็จ ใช้ Export JSON แทน'); }
+};
+$('selLoad').addEventListener('change',async e=>{
+  const k=e.target.value; if(!k) return;
+  try{ const r=await store.get(k,false); if(r&&r.value){ S=normalize(JSON.parse(r.value)); applyState(); toast(`เปิด ${S.unit.tag} แล้ว`);} }
+  catch(err){ toast('เปิดงานไม่สำเร็จ'); }
+  e.target.value='';
+});
+function download(name,text,type){
+  const b=new Blob([text],{type}); const a=document.createElement('a');
+  a.href=URL.createObjectURL(b); a.download=name; document.body.appendChild(a); a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},800);
+}
+const fileBase=()=>(S.unit.tag||'unit').replace(/[^\w.-]+/g,'_');
+$('bJson').onclick=()=>download(`${fileBase()}_spring-balance.json`,JSON.stringify(S,null,2),'application/json');
+$('fJson').addEventListener('change',e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const rd=new FileReader();
+  rd.onload=()=>{ try{ S=normalize(JSON.parse(rd.result)); applyState(); toast(`เปิด ${S.unit.tag} แล้ว`);}catch(err){ toast('ไฟล์ JSON ไม่ถูกต้อง'); } };
+  rd.readAsText(f); e.target.value='';
+});
+$('bCsv').onclick=()=>{
+  const L=last, n=(v,d)=>(v==null||!isFinite(v))?'':Number(v).toFixed(d);
+  const lines=[['Unit tag',S.unit.tag],['Building',S.unit.building],['Unit model',S.unit.model],
+    ['Date',new Date().toISOString().slice(0,10)],['Target basis',S.set.basis],['Tolerance %',S.set.tol],
+    ['Calculation round',S.rounds[L.ri].label],
+    ['Default rated deflection mm',L.defl],['Datasheet total kg',n(L.sumDs,0)],['Measured total kg',n(L.sumF,0)],[],
+    ['Point','Mount','Spring color','Rated kg','Rated deflection mm','k kg/mm','Spring free length mm',...S.rounds.map(r=>r.label+(S.set.mode==='height'?' height mm':' deflection mm')),'Spring loaded height mm','Deflection mm','Measured kg','Datasheet kg','Target kg','Deviation %','Target spring height mm','Target deflection mm','Adjust deflection mm','Turns','Status']];
+  L.R.forEach(r=>lines.push([r.p.id,r.c.m,r.c.color,n(r.c.load,0),n(r.c.defl,1),n(r.k,2),n(r.fl,1),...S.rounds.map((_,ri)=>measAt(r.p,ri)),n(r.Hl,1),n(r.d,1),n(r.F,0),n(r.ds,0),n(r.T,0),
+    n(r.dev,1),n(r.targetH,1),n(r.targetD,1),n(r.dd,1),n(r.turns,2),r.status==='none'?'':r.status]));
+  const stats=S.rounds.map((_,ri)=>roundStats(ri)).filter(st=>st.nMeas);
+  if(stats.length){
+    lines.push([],['Measurement rounds — load kg (deviation %)'],['Round','Note',...S.pts.map(p=>p.id),'Total kg','Max deviation %','Within tolerance']);
+    stats.forEach(st=>lines.push([S.rounds[st.ri].label,S.rounds[st.ri].note||'',
+      ...st.R.map((r,i)=>r.F==null?'':`${r.F.toFixed(0)} (${st.devs[i]>0?'+':''}${st.devs[i].toFixed(1)}%)`),
+      n(st.sumF,0),n(st.maxDev,1),st.nOk+' / '+st.R.length]));
+  }
+  if(L.seq&&L.seq.steps.length){
+    lines.push([],['Adjustment sequence'],['Step','Point','Priority','Reason','Bolt adjust mm (+ compress / - release)','Turns','Expected spring height after step mm','Expected deflection mm','Expected load kg']);
+    L.seq.steps.forEach(x=>lines.push([x.n,x.r.p.id,TIER[x.tier],x.reason,n(x.r.dd,1),n(x.r.turns,2),n(x.after.Hl,1),n(x.after.d,1),n(x.after.F,0)]));
+  }
+  const csv=lines.map(l=>l.map(v=>{const s=String(v??'');return /[",\n]/.test(s)?`"${s.replace(/"/g,'""')}"`:s;}).join(',')).join('\r\n');
+  download(`${fileBase()}_spring-balance.csv`,'\ufeff'+csv,'text/csv;charset=utf-8');
+};
+
+fillPresets();
+applyState();
+refreshList();
+
+/* run as an installable web app when served over http(s) */
+if('serviceWorker' in navigator && location.protocol.startsWith('http')){
+  window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+}
+let deferredInstall=null;
+window.addEventListener('beforeinstallprompt',e=>{
+  e.preventDefault(); deferredInstall=e;
+  const b=document.createElement('button');
+  b.id='bInstall'; b.textContent='ติดตั้งเป็นแอป';
+  b.onclick=async()=>{ b.remove(); deferredInstall.prompt(); deferredInstall=null; };
+  $('bSave').parentNode.insertBefore(b,$('bSave'));
+});
+</script>
+</body>
+</html>
